@@ -79,21 +79,20 @@
   .addBtn { background:#166534; color:#fff; border:none; border-radius:8px; padding:10px 16px; font-size:14px; font-weight:bold; white-space:nowrap; }
   textarea.bulk { width:100%; height:110px; padding:10px; font-size:14px; border:1.5px solid #cfdcd2; border-radius:8px; margin-bottom:8px; }
   .note { font-size:11px; color:#6b7f70; margin-bottom:8px; line-height:1.6; }
-  .tagList { display:flex; flex-direction:column; gap:4px; }
-  .tagRow { display:flex; align-items:center; gap:6px; padding:7px 4px; border-bottom:1px solid #edf3ee; }
+  .tagList { display:flex; flex-direction:column; gap:2px; }
+  .tagRow { display:flex; align-items:center; gap:5px; padding:7px 2px; border-bottom:1px solid #edf3ee; }
   .tagRow .tn { flex:1; font-size:14px; min-width:0; word-break:break-all; }
-  .freqBtn { border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:bold; white-space:nowrap; }
+  .freqBtn { border:none; border-radius:6px; padding:6px 9px; font-size:12px; font-weight:bold; white-space:nowrap; }
   .freqBtn.monthly { background:#ede9fe; color:#5b21b6; border:1px solid #c4b5fd; }
   .freqBtn.adhoc { background:#ffedd5; color:#9a3412; border:1px solid #fdba74; }
-  .tagWrap { display:flex; flex-wrap:wrap; gap:6px; }
-  .tag { background:#e8f2ea; border-radius:6px; padding:6px 8px; font-size:13px; display:flex; align-items:center; gap:6px; }
-  .tag button { background:none; border:none; color:#c0392b; font-size:15px; font-weight:bold; padding:0 2px; }
-  .miniDel { background:none; border:none; color:#c0392b; font-size:17px; font-weight:bold; padding:0 6px; }
+  .ordBtn { background:#f0f5f1; border:1px solid #cfdcd2; color:#3c5543; border-radius:6px; width:32px; height:32px; font-size:14px; font-weight:bold; flex:0 0 auto; }
+  .ordBtn:disabled { opacity:.3; }
+  .miniDel { background:none; border:none; color:#c0392b; font-size:17px; font-weight:bold; padding:0 6px; flex:0 0 auto; }
 
-  .setRow { display:flex; align-items:center; gap:6px; padding:8px 4px; border-bottom:1px solid #edf3ee; }
+  .setRow { display:flex; align-items:center; gap:5px; padding:8px 2px; border-bottom:1px solid #edf3ee; }
   .setRow .sn { flex:1; font-size:14px; min-width:0; word-break:break-all; line-height:1.4; }
   .setRow .sn .lk { display:block; font-size:11px; color:#0e7490; }
-  .miniBtn { background:#e0f2fe; border:1px solid #7dd3fc; color:#075985; border-radius:6px; padding:6px 9px; font-size:12px; font-weight:bold; white-space:nowrap; }
+  .miniBtn { background:#e0f2fe; border:1px solid #7dd3fc; color:#075985; border-radius:6px; padding:6px 8px; font-size:12px; font-weight:bold; white-space:nowrap; flex:0 0 auto; }
 
   .overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; z-index:100; align-items:flex-end; }
   .overlay.show { display:flex; }
@@ -203,16 +202,17 @@
     <div class="card">
       <h2>相場の会社</h2>
       <div class="inline"><input id="newCompany" placeholder="会社名"><button class="addBtn" onclick="addTarget('souba')">追加</button></div>
-      <div class="tagWrap" id="companyTags"></div>
+      <div class="note">「↑↓」で相場タブに並ぶ順番を変えられます</div>
+      <div class="tagList" id="companyTags"></div>
     </div>
     <div class="card">
       <h2>品名の登録</h2>
       <div class="inline"><select id="setCompanySel" onchange="renderSettingItems('souba')"></select></div>
       <div class="inline"><input id="newSoubaItem" placeholder="品名"><input id="newSoubaPrice" type="number" inputmode="decimal" placeholder="単価(任意)" style="max-width:110px"><button class="addBtn" onclick="addItem('souba')">追加</button></div>
-      <div class="note">まとめて登録:1行に1品名。「品名,単価」の形式もOK(単価は省略可)</div>
+      <div class="note">まとめて登録:1行に1品名。「品名,単価」の形式もOK(単価は省略可)<br>「↑↓」で並び順を変更(入力画面・一覧・表・印刷すべて同じ順になります)</div>
       <textarea class="bulk" id="bulkSouba" placeholder="銅型,2132&#10;2号銅,2072&#10;上銅新切"></textarea>
       <button class="addBtn" style="width:100%" onclick="bulkAdd('souba')">一括登録</button>
-      <div class="tagWrap" id="soubaItemTags" style="margin-top:10px"></div>
+      <div class="tagList" id="soubaItemTags" style="margin-top:10px"></div>
     </div>
     <div class="card">
       <h2>変動アラート</h2>
@@ -231,7 +231,7 @@
     <div class="card">
       <h2>取引先</h2>
       <div class="inline"><input id="newClient" placeholder="取引先名"><button class="addBtn" onclick="addTarget('client')">追加</button></div>
-      <div class="note">「月一」「都度」ボタンで単価改定のタイプを切り替えられます(月一=毎月の見積書、都度=相場に合わせて随時)</div>
+      <div class="note">「月一」「都度」ボタンで単価改定のタイプを切り替え。「↑↓」で並び順を変更</div>
       <div class="tagList" id="clientTags"></div>
     </div>
     <div class="card">
@@ -241,7 +241,7 @@
       <div class="note">まとめて登録:1行に1品名。「品名,単価」の形式もOK<br>🔗連動を設定した品目は、相場を保存すると自動で「相場±円」に更新されます</div>
       <textarea class="bulk" id="bulkClient"></textarea>
       <button class="addBtn" style="width:100%" onclick="bulkAdd('client')">一括登録</button>
-      <div id="clientItemTags" style="margin-top:10px"></div>
+      <div class="tagList" id="clientItemTags" style="margin-top:10px"></div>
     </div>
   </div>
 </div>
@@ -522,9 +522,10 @@ function renderList(kind){
     const df = diffTxt(it);
     const linked = kind==='client' && it.link;
     const when = it.t ? (monthly ? `${fmtMonth(it.t)}分` : `更新 ${fmtDate(it.t)}`) : '未入力';
-    html += `<div class="row ${isToday(it.t)?'today':''}">
+    const showToday = !monthly && isToday(it.t);
+    html += `<div class="row ${showToday?'today':''}">
       <button class="iname" onclick="showHistory('${kind}',${idx})">
-        ${esc(it.n)}${isToday(it.t)?'<span class="todayBadge">本日</span>':''}
+        ${esc(it.n)}${showToday?'<span class="todayBadge">本日</span>':''}
         <span class="sub">${when}${it.pp!=null?` / 前回 ${it.pp}円`:''}${df?` <span class="${df.cls}">${df.txt}</span>`:''}</span>
         ${linked?`<span class="sub lk">🔗 ${esc(compName(it.link.cid))}/${esc(it.link.item)} ${adjTxt(it.link.adj)}</span>`:''}
       </button>
@@ -900,15 +901,56 @@ async function removeLink(){
 }
 function closeLink(){ document.getElementById('linkOverlay').classList.remove('show'); linkEditing=null; }
 
+/* ---------- 並び順変更 ---------- */
+async function moveTarget(kind, id, dir){
+  const list = S[kind].list;
+  const i = list.findIndex(c=>c.id===id);
+  const j = i + dir;
+  if(i<0 || j<0 || j>=list.length) return;
+  const a = list[i], b = list[j];
+  const batch = db.batch();
+  batch.update(db.collection(COL[kind]).doc(a.id), {order: j});
+  batch.update(db.collection(COL[kind]).doc(b.id), {order: i});
+  // 他の全員のorderも並び直す(orderの重複対策)
+  list.forEach((c,idx2)=>{
+    if(c.id!==a.id && c.id!==b.id) batch.update(db.collection(COL[kind]).doc(c.id), {order: idx2});
+  });
+  [list[i], list[j]] = [list[j], list[i]];
+  await batch.commit();
+  renderChips(kind); renderSettings();
+  toast('並び順を変更しました');
+}
+async function moveItem(kind, idx, dir){
+  const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
+  const target = S[kind].list.find(c=>c.id===sel.value);
+  if(!target) return;
+  const j = idx + dir;
+  if(j<0 || j>=target.items.length) return;
+  const items = [...target.items];
+  [items[idx], items[j]] = [items[j], items[idx]];
+  await db.collection(COL[kind]).doc(target.id).update({items});
+  target.items = items;
+  renderSettingItems(kind);
+  renderList(kind);
+  toast('並び順を変更しました');
+}
+
 /* ---------- 設定 ---------- */
 function renderSettings(){
   document.getElementById('alertDiffInput').value = S.alertDiff;
-  document.getElementById('companyTags').innerHTML = S.souba.list.map(c=>`<span class="tag">${esc(c.name)}<button onclick="delTarget('souba','${c.id}')">×</button></span>`).join('');
-  document.getElementById('clientTags').innerHTML = S.client.list.map(c=>{
+  document.getElementById('companyTags').innerHTML = S.souba.list.map((c,i)=>`<div class="tagRow">
+    <span class="tn">${esc(c.name)}</span>
+    <button class="ordBtn" onclick="moveTarget('souba','${c.id}',-1)" ${i===0?'disabled':''}>↑</button>
+    <button class="ordBtn" onclick="moveTarget('souba','${c.id}',1)" ${i===S.souba.list.length-1?'disabled':''}>↓</button>
+    <button class="miniDel" onclick="delTarget('souba','${c.id}')">×</button>
+  </div>`).join('');
+  document.getElementById('clientTags').innerHTML = S.client.list.map((c,i)=>{
     const m = isMonthly(c);
     return `<div class="tagRow">
       <span class="tn">${esc(c.name)}</span>
       <button class="freqBtn ${m?'monthly':'adhoc'}" onclick="toggleFreq('${c.id}')">${m?'📅 月一':'⚡ 都度'}</button>
+      <button class="ordBtn" onclick="moveTarget('client','${c.id}',-1)" ${i===0?'disabled':''}>↑</button>
+      <button class="ordBtn" onclick="moveTarget('client','${c.id}',1)" ${i===S.client.list.length-1?'disabled':''}>↓</button>
       <button class="miniDel" onclick="delTarget('client','${c.id}')">×</button>
     </div>`;
   }).join('') || '<div class="note">まだ登録がありません</div>';
@@ -933,16 +975,22 @@ async function toggleFreq(id){
 function renderSettingItems(kind){
   const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
   const target = S[kind].list.find(c=>c.id===sel.value);
+  const box = document.getElementById(kind==='souba'?'soubaItemTags':'clientItemTags');
+  if(!target){ box.innerHTML=''; return; }
+  const items = target.items||[];
   if(kind==='souba'){
-    const box = document.getElementById('soubaItemTags');
-    if(!target){ box.innerHTML=''; return; }
-    box.innerHTML = (target.items||[]).map((it,idx)=>`<span class="tag">${esc(it.n)}<button onclick="delItem('souba',${idx})">×</button></span>`).join('') || '<div class="note">まだ品名がありません</div>';
+    box.innerHTML = items.map((it,idx)=>`<div class="setRow">
+      <span class="sn">${esc(it.n)}</span>
+      <button class="ordBtn" onclick="moveItem('souba',${idx},-1)" ${idx===0?'disabled':''}>↑</button>
+      <button class="ordBtn" onclick="moveItem('souba',${idx},1)" ${idx===items.length-1?'disabled':''}>↓</button>
+      <button class="miniDel" onclick="delItem('souba',${idx})">×</button>
+    </div>`).join('') || '<div class="note">まだ品名がありません</div>';
   } else {
-    const box = document.getElementById('clientItemTags');
-    if(!target){ box.innerHTML=''; return; }
-    box.innerHTML = (target.items||[]).map((it,idx)=>`<div class="setRow">
+    box.innerHTML = items.map((it,idx)=>`<div class="setRow">
       <span class="sn">${esc(it.n)}${it.link?`<span class="lk">🔗 ${esc(compName(it.link.cid))}/${esc(it.link.item)} ${adjTxt(it.link.adj)}</span>`:''}</span>
-      <button class="miniBtn" onclick="openLink(${idx})">${it.link?'連動変更':'連動'}</button>
+      <button class="miniBtn" onclick="openLink(${idx})">${it.link?'連動':'連動'}</button>
+      <button class="ordBtn" onclick="moveItem('client',${idx},-1)" ${idx===0?'disabled':''}>↑</button>
+      <button class="ordBtn" onclick="moveItem('client',${idx},1)" ${idx===items.length-1?'disabled':''}>↓</button>
       <button class="miniDel" onclick="delItem('client',${idx})">×</button>
     </div>`).join('') || '<div class="note">まだ品名がありません</div>';
   }
