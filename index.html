@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="./icon.png">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  body { font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif; background:#f0f5f1; color:#1c2b21; padding-bottom:90px; }
+  body { font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif; background:#f0f5f1; color:#1c2b21; padding-bottom:120px; }
 
   #lock { position:fixed; inset:0; background:linear-gradient(160deg,#14532d,#166534); z-index:999; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px; padding:20px; }
   #lock h1 { color:#fff; font-size:24px; letter-spacing:3px; }
@@ -43,7 +43,7 @@
 
   .meta { font-size:12px; color:#6b7f70; margin-bottom:8px; padding-left:2px; }
 
-  .row { display:flex; align-items:center; gap:6px; background:#fff; border-radius:10px; padding:8px 8px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .row { display:flex; align-items:center; gap:8px; background:#fff; border-radius:10px; padding:8px 10px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
   .row.today { background:#f0fdf4; }
   .iname { flex:1; text-align:left; background:none; border:none; font-size:15px; color:#1c2b21; padding:4px 0; min-width:0; word-break:break-all; line-height:1.4; }
   .sub { display:block; font-size:11px; color:#8a9b8f; }
@@ -51,14 +51,12 @@
   .sub .up { color:#c0392b; font-weight:bold; }
   .sub .down { color:#1d4ed8; font-weight:bold; }
   .todayBadge { display:inline-block; background:#16a34a; color:#fff; font-size:10px; border-radius:4px; padding:1px 5px; margin-left:4px; vertical-align:middle; }
-  .step { flex:0 0 auto; width:38px; height:40px; border-radius:8px; border:1.5px solid #cfdcd2; background:#fff; font-size:19px; font-weight:bold; color:#166534; }
-  .step:active { background:#e8f2ea; }
-  .price { width:86px; padding:9px 6px; font-size:17px; text-align:right; border:1.5px solid #cfdcd2; border-radius:8px; background:#fafdfb; }
+  .price { width:110px; padding:10px 8px; font-size:17px; text-align:right; border:1.5px solid #cfdcd2; border-radius:8px; background:#fafdfb; }
   .price:focus { outline:none; border-color:#16a34a; }
   .price.chg { background:#fff7d6; border-color:#eab308; font-weight:bold; }
   .price.lkIn { background:#ecfeff; border-color:#a5f3fc; color:#155e75; }
+  .yen { font-size:12px; color:#6b7f70; }
 
-  /* 表モード */
   .tblWrap { overflow-x:auto; background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.06); -webkit-overflow-scrolling:touch; }
   table.ttable { border-collapse:collapse; min-width:100%; font-size:13px; }
   .ttable th, .ttable td { border:1px solid #d8e4da; padding:8px 9px; text-align:right; white-space:nowrap; }
@@ -71,6 +69,9 @@
 
   .saveBar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:2px solid #d8e4da; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:none; z-index:60; }
   .saveBar.show { display:block; }
+  .saveDateRow { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .saveDateRow label { font-size:13px; color:#6b7f70; font-weight:bold; white-space:nowrap; }
+  .saveDateRow input { flex:1; padding:8px; font-size:15px; border:1.5px solid #cfdcd2; border-radius:8px; background:#fff; }
   .saveBtn { width:100%; background:#16a34a; color:#fff; border:none; border-radius:12px; padding:15px; font-size:17px; font-weight:bold; box-shadow:0 3px 8px rgba(22,163,74,.4); }
   .saveBtn:disabled { background:#a8c4b0; box-shadow:none; }
 
@@ -114,7 +115,7 @@
   .field label { display:block; font-size:12px; color:#6b7f70; margin-bottom:4px; }
   .field select, .field input { width:100%; padding:10px; font-size:15px; border:1.5px solid #cfdcd2; border-radius:8px; background:#fff; }
 
-  #toast { position:fixed; left:50%; bottom:110px; transform:translateX(-50%); background:#1c2b21; color:#fff; padding:11px 22px; border-radius:22px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:200; white-space:nowrap; }
+  #toast { position:fixed; left:50%; bottom:130px; transform:translateX(-50%); background:#1c2b21; color:#fff; padding:11px 22px; border-radius:22px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:200; white-space:nowrap; }
   #toast.show { opacity:1; }
   .empty { text-align:center; color:#8a9b8f; padding:30px 0; font-size:14px; }
 
@@ -162,7 +163,6 @@
   <div class="toolRow">
     <input class="searchBox" id="soubaSearch" placeholder="🔍 品名で検索" oninput="renderList('souba')">
     <button class="toolBtn" id="tblBtn" onclick="toggleTable()">📋 表</button>
-    <button class="toolBtn" onclick="openAdj()">±</button>
     <button class="toolBtn" onclick="printView('souba')">🖨️</button>
   </div>
   <div class="meta" id="soubaMeta"></div>
@@ -174,7 +174,6 @@
   <div class="chips" id="clientChips"></div>
   <div class="toolRow">
     <input class="searchBox" id="clientSearch" placeholder="🔍 品名で検索" oninput="renderList('client')">
-    <button class="toolBtn" onclick="openAdj()">±</button>
     <button class="toolBtn" onclick="printView('client')">🖨️</button>
   </div>
   <div class="meta" id="clientMeta"></div>
@@ -204,10 +203,8 @@
       <div class="tagList" id="soubaItemTags" style="margin-top:10px"></div>
     </div>
     <div class="card">
-      <h2>入力の設定</h2>
-      <div class="note">±ボタンを1回押したときに動く金額</div>
-      <div class="inline"><input id="stepInput" type="number" inputmode="decimal" placeholder="10"><span style="align-self:center;font-size:13px">円ずつ</span><button class="addBtn" onclick="saveStep()">保存</button></div>
-      <div class="note" style="margin-top:8px">1回の更新でこの金額以上動いた品目を、相場タブの上に赤く表示</div>
+      <h2>変動アラート</h2>
+      <div class="note">1回の更新でこの金額以上動いた品目を、相場タブの上に赤く表示します</div>
       <div class="inline"><input id="alertDiffInput" type="number" inputmode="decimal" placeholder="50"><span style="align-self:center;font-size:13px">円以上</span><button class="addBtn" onclick="saveAlertDiff()">保存</button></div>
     </div>
     <div class="card">
@@ -237,6 +234,7 @@
 </div>
 
 <div class="saveBar" id="saveBar">
+  <div class="saveDateRow"><label>📅 適用日</label><input type="date" id="saveDate"></div>
   <button class="saveBtn" id="saveBtn" onclick="saveChanges()">保存</button>
 </div>
 
@@ -256,22 +254,11 @@
     <h3 id="linkTitle">🔗 相場との連動</h3>
     <div class="field"><label>連動元の会社</label><select id="linkCompanySel" onchange="fillLinkItems()"></select></div>
     <div class="field"><label>連動元の品名</label><select id="linkItemSel"></select></div>
-    <div class="field"><label>調整額(円)マイナスも入力できます(例: -20)</label><input id="linkAdj" type="number" inputmode="decimal" step="any" placeholder="0"></div>
+    <div class="field"><label>調整額(円)マイナスも入力できます(例: -70)</label><input id="linkAdj" type="number" inputmode="decimal" step="any" placeholder="0"></div>
     <div class="note" id="linkPreview"></div>
     <button class="primaryBtn" onclick="saveLink()">連動を設定</button>
     <button class="dangerBtn" id="linkRemoveBtn" onclick="removeLink()">連動を解除</button>
     <button class="closeBtn" onclick="closeLink()">閉じる</button>
-  </div>
-</div>
-
-<!-- まとめて増減 -->
-<div class="overlay" id="adjOverlay" onclick="if(event.target===this)closeAdj()">
-  <div class="sheet">
-    <h3>± まとめて増減</h3>
-    <div class="note" id="adjNote"></div>
-    <div class="field"><label>増減額(円)下げは −20 のようにマイナスで入力</label><input id="adjAmt" type="number" inputmode="decimal" step="any" placeholder="-10"></div>
-    <button class="primaryBtn" onclick="applyAdj()">表示中の品目に適用</button>
-    <button class="closeBtn" onclick="closeAdj()">閉じる</button>
   </div>
 </div>
 
@@ -300,7 +287,6 @@ const DEFAULT_COMPANIES = ['産業新聞(非鉄)','産業新聞(鉄)','朝日工
 const S = {
   tab:'souba',
   alertDiff:50,
-  stepAmt:10,
   tableMode:false,
   tableCache:{},
   souba:{ list:[], currentId:null, edits:{} },
@@ -308,7 +294,6 @@ const S = {
 };
 let linkEditing = null;
 
-/* ---------- パスワード ---------- */
 function unlock(){
   const v = document.getElementById('pw').value;
   if(v === PASSCODE){
@@ -326,6 +311,7 @@ function fmtDate(ts){ const d=new Date(ts); return `${d.getFullYear()}/${d.getMo
 function fmtMD(ts){ const d=new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`; }
 function fmtTime(ts){ const d=new Date(ts); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function isToday(ts){ return ts && fmtDate(ts)===fmtDate(Date.now()); }
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function round2(n){ return Math.round(n*100)/100; }
 function diffTxt(it){
@@ -337,14 +323,16 @@ function diffTxt(it){
 }
 function compName(id){ const c=S.souba.list.find(x=>x.id===id); return c?c.name:'?'; }
 function adjTxt(a){ a=a||0; return (a>=0?'+':'')+a+'円'; }
+function getSaveTs(){
+  const v = document.getElementById('saveDate').value;
+  if(!v || v===todayStr()) return Date.now();
+  const [y,m,d] = v.split('-').map(Number);
+  return new Date(y, m-1, d, 12, 0, 0).getTime();
+}
 
-/* ---------- 読み込み ---------- */
 async function loadAll(){
   const cfg = await db.collection('tankaConfig').doc('main').get();
-  if(cfg.exists){
-    if(cfg.data().alertDiff!=null) S.alertDiff = cfg.data().alertDiff;
-    if(cfg.data().stepAmt!=null) S.stepAmt = cfg.data().stepAmt;
-  }
+  if(cfg.exists && cfg.data().alertDiff!=null) S.alertDiff = cfg.data().alertDiff;
 
   const snap = await db.collection(COL.souba).orderBy('order').get();
   let list = snap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -398,14 +386,6 @@ async function saveAlertDiff(){
   S.alertDiff = v; renderAlertBar();
   toast(`アラート基準を±${v}円にしました`);
 }
-async function saveStep(){
-  const v = parseFloat(document.getElementById('stepInput').value);
-  if(isNaN(v) || v<=0){ toast('数字を入力してください'); return; }
-  await db.collection('tankaConfig').doc('main').set({stepAmt:v},{merge:true});
-  S.stepAmt = v;
-  renderList('souba'); renderList('client');
-  toast(`±ボタンを${v}円ずつにしました`);
-}
 
 function switchTab(tab){
   S.tab = tab;
@@ -433,7 +413,6 @@ function selectTarget(kind,id){
   renderChips(kind); renderList(kind); updateSaveBar();
 }
 
-/* ---------- 表モード ---------- */
 function toggleTable(){
   S.tableMode = !S.tableMode;
   document.getElementById('tblBtn').classList.toggle('act', S.tableMode);
@@ -516,24 +495,11 @@ function renderList(kind){
         <span class="sub">${it.t?`更新 ${fmtDate(it.t)}`:'未入力'}${it.pp!=null?` / 前回 ${it.pp}円`:''}${df?` <span class="${df.cls}">${df.txt}</span>`:''}</span>
         ${linked?`<span class="sub lk">🔗 ${esc(compName(it.link.cid))}/${esc(it.link.item)} ${adjTxt(it.link.adj)}</span>`:''}
       </button>
-      ${linked?'':`<button class="step" onclick="stepPrice('${kind}',${idx},-1)">−</button>`}
       <input class="price ${edited?'chg':''} ${linked?'lkIn':''}" type="number" inputmode="decimal" step="any" placeholder="未設定" value="${val}" ${linked?'readonly onclick="toast(\'🔗連動品目は自動計算です(設定タブで変更)\')"':''} oninput="onPriceInput('${kind}',${idx},this)">
-      ${linked?'':`<button class="step" onclick="stepPrice('${kind}',${idx},1)">＋</button>`}
+      <span class="yen">円</span>
     </div>`;
   });
   box.innerHTML = html || '<div class="empty">該当する品名がありません</div>';
-}
-
-function stepPrice(kind, idx, dir){
-  const st = S[kind];
-  const target = st.list.find(c=>c.id===st.currentId);
-  const it = target.items[idx];
-  if(kind==='client' && it.link) return;
-  const cur = st.edits.hasOwnProperty(idx) ? st.edits[idx] : (it.p ?? 0);
-  const v = round2(cur + dir*S.stepAmt);
-  if(v === it.p) delete st.edits[idx];
-  else st.edits[idx] = v;
-  renderList(kind); updateSaveBar();
 }
 
 function onPriceInput(kind, idx, inp){
@@ -547,57 +513,15 @@ function onPriceInput(kind, idx, inp){
   updateSaveBar();
 }
 
-/* ---------- まとめて増減 ---------- */
-function adjTargets(){
-  const kind = S.tab;
-  const st = S[kind];
-  const target = st.list.find(c=>c.id===st.currentId);
-  if(!target) return {kind, target:null, idxs:[]};
-  const q = document.getElementById(kind+'Search').value.trim();
-  const idxs = [];
-  (target.items||[]).forEach((it,idx)=>{
-    if(q && !it.n.includes(q)) return;
-    if(it.p==null) return;
-    if(kind==='client' && it.link) return;
-    idxs.push(idx);
-  });
-  return {kind, target, idxs};
-}
-function openAdj(){
-  if(S.tab==='setting') return;
-  if(S.tab==='souba' && S.tableMode){ toast('入力画面(📝)に切り替えてから使ってください'); return; }
-  const {target, idxs} = adjTargets();
-  if(!target){ toast('先に会社・取引先を選んでください'); return; }
-  if(!idxs.length){ toast('増減できる品目がありません(単価未設定・連動品目は対象外)'); return; }
-  document.getElementById('adjNote').textContent = `「${target.name}」の表示中 ${idxs.length}品目に一括で増減します(単価未設定・🔗連動品目は対象外)。適用後、黄色の状態で確認してから保存してください。`;
-  document.getElementById('adjAmt').value = '';
-  document.getElementById('adjOverlay').classList.add('show');
-}
-function applyAdj(){
-  const amt = parseFloat(document.getElementById('adjAmt').value);
-  if(isNaN(amt) || amt===0){ toast('増減額を入力してください'); return; }
-  const {kind, target, idxs} = adjTargets();
-  if(!target) return;
-  const st = S[kind];
-  idxs.forEach(idx=>{
-    const it = target.items[idx];
-    const base = st.edits.hasOwnProperty(idx) ? st.edits[idx] : it.p;
-    const v = round2(base + amt);
-    if(v === it.p) delete st.edits[idx];
-    else st.edits[idx] = v;
-  });
-  closeAdj();
-  renderList(kind); updateSaveBar();
-  toast(`${idxs.length}品目に ${amt>0?'+':''}${amt}円 を適用しました(保存前)`);
-}
-function closeAdj(){ document.getElementById('adjOverlay').classList.remove('show'); }
-
 function updateSaveBar(){
   const bar = document.getElementById('saveBar');
   const btn = document.getElementById('saveBtn');
   if(S.tab==='setting'){ bar.classList.remove('show'); return; }
   const n = Object.keys(S[S.tab].edits).length;
-  if(n>0){ bar.classList.add('show'); btn.textContent=`変更 ${n}件を保存`; btn.disabled=false; }
+  if(n>0){
+    if(!bar.classList.contains('show')) document.getElementById('saveDate').value = todayStr();
+    bar.classList.add('show'); btn.textContent=`変更 ${n}件を保存`; btn.disabled=false;
+  }
   else bar.classList.remove('show');
 }
 
@@ -610,7 +534,7 @@ async function saveChanges(){
   const btn = document.getElementById('saveBtn');
   btn.disabled = true; btn.textContent='保存中…';
   try{
-    const now = Date.now();
+    const now = getSaveTs();
     const newItems = target.items.map((it,idx)=> st.edits.hasOwnProperty(idx) ? {...it, pp:(it.p!=null?it.p:it.pp??null), p:st.edits[idx], t:now} : it);
 
     let linkedUpdates = [];
@@ -664,14 +588,13 @@ async function saveChanges(){
     S.tableCache = {};
     renderList('souba'); renderList('client'); renderAlertBar(); updateSaveBar();
     const linkedCount = linkedUpdates.reduce((s,u)=>s+u.touched,0);
-    toast(`✅ ${keys.length}件保存しました` + (linkedCount?`(連動${linkedCount}件も更新)`:''));
+    toast(`✅ ${fmtDate(now)}付で${keys.length}件保存しました` + (linkedCount?`(連動${linkedCount}件も更新)`:''));
   }catch(e){
     console.error(e); toast('❌ 保存に失敗しました');
     btn.disabled=false; updateSaveBar();
   }
 }
 
-/* ---------- 履歴・グラフ ---------- */
 async function showHistory(kind, idx){
   const st = S[kind];
   const target = st.list.find(c=>c.id===st.currentId);
@@ -714,7 +637,6 @@ function drawChart(vals){
 }
 function closeHist(){ document.getElementById('histOverlay').classList.remove('show'); }
 
-/* ---------- CSVエクスポート ---------- */
 function csvCell(v){
   if(v==null) v='';
   v = String(v);
@@ -766,7 +688,6 @@ function exportCurrentCSV(){
   toast(`📥 現在単価 ${rows.length-1}件を出力しました`);
 }
 
-/* ---------- 印刷 / PDF ---------- */
 async function printView(kind){
   const st = S[kind];
   const target = st.list.find(c=>c.id===st.currentId);
@@ -813,7 +734,6 @@ async function printView(kind){
   window.print();
 }
 
-/* ---------- 連動設定 ---------- */
 function openLink(idx){
   const sel = document.getElementById('setClientSel');
   const client = S.client.list.find(c=>c.id===sel.value);
@@ -892,10 +812,8 @@ async function removeLink(){
 }
 function closeLink(){ document.getElementById('linkOverlay').classList.remove('show'); linkEditing=null; }
 
-/* ---------- 設定 ---------- */
 function renderSettings(){
   document.getElementById('alertDiffInput').value = S.alertDiff;
-  document.getElementById('stepInput').value = S.stepAmt;
   document.getElementById('companyTags').innerHTML = S.souba.list.map(c=>`<span class="tag">${esc(c.name)}<button onclick="delTarget('souba','${c.id}')">×</button></span>`).join('');
   document.getElementById('clientTags').innerHTML = S.client.list.map(c=>`<span class="tag">${esc(c.name)}<button onclick="delTarget('client','${c.id}')">×</button></span>`).join('') || '<div class="note">まだ登録がありません</div>';
   ['souba','client'].forEach(kind=>{
@@ -991,7 +909,6 @@ async function delItem(kind, idx){
   await loadAll(); toast('削除しました');
 }
 
-/* ---------- PWA ---------- */
 let deferredPrompt=null;
 window.addEventListener('beforeinstallprompt', e=>{
   e.preventDefault(); deferredPrompt=e;
