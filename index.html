@@ -9,7 +9,9 @@
 <link rel="apple-touch-icon" href="./icon.png">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  body { font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif; background:#f0f5f1; color:#1c2b21; padding-bottom:120px; }
+  body { font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif; background:#f0f5f1; color:#1c2b21; padding-bottom:40px; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  input[type=number] { -moz-appearance:textfield; }
 
   #lock { position:fixed; inset:0; background:linear-gradient(160deg,#14532d,#166534); z-index:999; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px; padding:20px; }
   #lock h1 { color:#fff; font-size:24px; letter-spacing:3px; }
@@ -38,24 +40,21 @@
   .toolRow { display:flex; gap:8px; margin-bottom:10px; }
   .searchBox { flex:1; padding:11px 14px; font-size:16px; border:1.5px solid #b9ccbc; border-radius:10px; background:#fff; min-width:0; }
   .searchBox:focus { outline:none; border-color:#16a34a; }
-  .toolBtn { flex:0 0 auto; background:#fff; border:1.5px solid #b9ccbc; border-radius:10px; padding:0 13px; font-size:15px; color:#3c5543; font-weight:bold; }
-  .toolBtn.act { background:#166534; border-color:#166534; color:#fff; }
+  .toolBtn { flex:0 0 auto; background:#fff; border:1.5px solid #b9ccbc; border-radius:10px; padding:0 13px; font-size:14px; color:#3c5543; font-weight:bold; }
+  .inputBtn { flex:0 0 auto; background:#16a34a; border:none; border-radius:10px; padding:0 16px; font-size:14px; color:#fff; font-weight:bold; box-shadow:0 2px 6px rgba(22,163,74,.35); }
 
   .meta { font-size:12px; color:#6b7f70; margin-bottom:8px; padding-left:2px; }
 
-  .row { display:flex; align-items:center; gap:8px; background:#fff; border-radius:10px; padding:8px 10px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .row { display:flex; align-items:center; gap:8px; background:#fff; border-radius:10px; padding:10px; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
   .row.today { background:#f0fdf4; }
-  .iname { flex:1; text-align:left; background:none; border:none; font-size:15px; color:#1c2b21; padding:4px 0; min-width:0; word-break:break-all; line-height:1.4; }
+  .iname { flex:1; text-align:left; background:none; border:none; font-size:15px; color:#1c2b21; padding:2px 0; min-width:0; word-break:break-all; line-height:1.4; }
   .sub { display:block; font-size:11px; color:#8a9b8f; }
   .sub .lk { color:#0e7490; }
   .sub .up { color:#c0392b; font-weight:bold; }
   .sub .down { color:#1d4ed8; font-weight:bold; }
   .todayBadge { display:inline-block; background:#16a34a; color:#fff; font-size:10px; border-radius:4px; padding:1px 5px; margin-left:4px; vertical-align:middle; }
-  .price { width:110px; padding:10px 8px; font-size:17px; text-align:right; border:1.5px solid #cfdcd2; border-radius:8px; background:#fafdfb; }
-  .price:focus { outline:none; border-color:#16a34a; }
-  .price.chg { background:#fff7d6; border-color:#eab308; font-weight:bold; }
-  .price.lkIn { background:#ecfeff; border-color:#a5f3fc; color:#155e75; }
-  .yen { font-size:12px; color:#6b7f70; }
+  .pv { font-size:18px; font-weight:bold; color:#166534; white-space:nowrap; }
+  .pv.unset { color:#b0bfb4; font-size:14px; font-weight:normal; }
 
   .tblWrap { overflow-x:auto; background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.06); -webkit-overflow-scrolling:touch; }
   table.ttable { border-collapse:collapse; min-width:100%; font-size:13px; }
@@ -66,14 +65,6 @@
   .ttable td.latest { background:#f0fdf4; font-weight:bold; }
   .ttable td .cup { color:#c0392b; font-size:10px; display:block; }
   .ttable td .cdown { color:#1d4ed8; font-size:10px; display:block; }
-
-  .saveBar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:2px solid #d8e4da; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:none; z-index:60; }
-  .saveBar.show { display:block; }
-  .saveDateRow { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-  .saveDateRow label { font-size:13px; color:#6b7f70; font-weight:bold; white-space:nowrap; }
-  .saveDateRow input { flex:1; padding:8px; font-size:15px; border:1.5px solid #cfdcd2; border-radius:8px; background:#fff; }
-  .saveBtn { width:100%; background:#16a34a; color:#fff; border:none; border-radius:12px; padding:15px; font-size:17px; font-weight:bold; box-shadow:0 3px 8px rgba(22,163,74,.4); }
-  .saveBtn:disabled { background:#a8c4b0; box-shadow:none; }
 
   .subTabs { display:flex; gap:8px; margin-bottom:12px; }
   .subTab { flex:1; text-align:center; padding:11px 0; font-size:14px; font-weight:bold; border-radius:10px; background:#fff; border:1.5px solid #b9ccbc; color:#3c5543; }
@@ -100,8 +91,21 @@
 
   .overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; z-index:100; align-items:flex-end; }
   .overlay.show { display:flex; }
-  .sheet { background:#fff; width:100%; max-height:80vh; border-radius:16px 16px 0 0; padding:16px; overflow-y:auto; }
+  .sheet { background:#fff; width:100%; max-height:85vh; border-radius:16px 16px 0 0; padding:16px; overflow-y:auto; }
   .sheet h3 { font-size:16px; color:#166534; margin-bottom:12px; }
+
+  /* 入力画面 */
+  .inDateRow { display:flex; align-items:center; gap:10px; background:#e8f2ea; border-radius:10px; padding:10px 12px; margin-bottom:10px; position:sticky; top:0; z-index:5; }
+  .inDateRow label { font-size:14px; font-weight:bold; color:#166534; white-space:nowrap; }
+  .inDateRow input { flex:1; padding:9px; font-size:16px; border:1.5px solid #16a34a; border-radius:8px; background:#fff; font-weight:bold; }
+  .inRow { display:flex; align-items:center; gap:8px; padding:8px 2px; border-bottom:1px solid #edf3ee; }
+  .inRow .n { flex:1; font-size:14px; min-width:0; word-break:break-all; line-height:1.4; }
+  .inRow .n small { display:block; color:#8a9b8f; font-size:11px; }
+  .inRow input { width:110px; padding:10px 8px; font-size:17px; text-align:right; border:1.5px solid #cfdcd2; border-radius:8px; background:#fafdfb; }
+  .inRow input:focus { outline:none; border-color:#16a34a; background:#fff; }
+  .inRow input.chg { background:#fff7d6; border-color:#eab308; font-weight:bold; }
+  .inRow .lkNote { width:110px; font-size:11px; color:#0e7490; text-align:right; }
+
   .histRow { display:flex; justify-content:space-between; padding:9px 4px; border-bottom:1px solid #edf3ee; font-size:14px; }
   .histRow .d { color:#6b7f70; font-size:13px; }
   .autoTag { color:#0e7490; font-size:11px; margin-right:4px; }
@@ -109,15 +113,15 @@
   .down { color:#1d4ed8; font-weight:bold; }
   .closeBtn { width:100%; margin-top:14px; background:#eef3ef; border:none; border-radius:10px; padding:13px; font-size:15px; color:#3c5543; font-weight:bold; }
   .dangerBtn { width:100%; margin-top:8px; background:#fef2f2; border:1px solid #fca5a5; border-radius:10px; padding:13px; font-size:15px; color:#b91c1c; font-weight:bold; }
-  .primaryBtn { width:100%; margin-top:8px; background:#16a34a; border:none; border-radius:10px; padding:13px; font-size:15px; color:#fff; font-weight:bold; }
+  .primaryBtn { width:100%; margin-top:8px; background:#16a34a; border:none; border-radius:10px; padding:14px; font-size:16px; color:#fff; font-weight:bold; box-shadow:0 2px 6px rgba(22,163,74,.35); }
   canvas { width:100%; height:130px; margin-bottom:10px; }
   .field { margin-bottom:10px; }
   .field label { display:block; font-size:12px; color:#6b7f70; margin-bottom:4px; }
   .field select, .field input { width:100%; padding:10px; font-size:15px; border:1.5px solid #cfdcd2; border-radius:8px; background:#fff; }
 
-  #toast { position:fixed; left:50%; bottom:130px; transform:translateX(-50%); background:#1c2b21; color:#fff; padding:11px 22px; border-radius:22px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:200; white-space:nowrap; }
+  #toast { position:fixed; left:50%; bottom:40px; transform:translateX(-50%); background:#1c2b21; color:#fff; padding:11px 22px; border-radius:22px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:200; white-space:nowrap; }
   #toast.show { opacity:1; }
-  .empty { text-align:center; color:#8a9b8f; padding:30px 0; font-size:14px; }
+  .empty { text-align:center; color:#8a9b8f; padding:30px 0; font-size:14px; line-height:1.8; }
 
   #printArea { display:none; }
   @media print {
@@ -162,7 +166,8 @@
   <div class="chips" id="soubaChips"></div>
   <div class="toolRow">
     <input class="searchBox" id="soubaSearch" placeholder="🔍 品名で検索" oninput="renderList('souba')">
-    <button class="toolBtn" id="tblBtn" onclick="toggleTable()">📋 表</button>
+    <button class="inputBtn" onclick="openInput('souba')">➕ 入力</button>
+    <button class="toolBtn" id="tblBtn" onclick="toggleTable()">📝 一覧</button>
     <button class="toolBtn" onclick="printView('souba')">🖨️</button>
   </div>
   <div class="meta" id="soubaMeta"></div>
@@ -174,6 +179,7 @@
   <div class="chips" id="clientChips"></div>
   <div class="toolRow">
     <input class="searchBox" id="clientSearch" placeholder="🔍 品名で検索" oninput="renderList('client')">
+    <button class="inputBtn" onclick="openInput('client')">➕ 入力</button>
     <button class="toolBtn" onclick="printView('client')">🖨️</button>
   </div>
   <div class="meta" id="clientMeta"></div>
@@ -233,9 +239,17 @@
   </div>
 </div>
 
-<div class="saveBar" id="saveBar">
-  <div class="saveDateRow"><label>📅 適用日</label><input type="date" id="saveDate"></div>
-  <button class="saveBtn" id="saveBtn" onclick="saveChanges()">保存</button>
+<!-- 単価入力 -->
+<div class="overlay" id="inputOverlay">
+  <div class="sheet">
+    <h3 id="inputTitle">➕ 単価入力</h3>
+    <div class="inDateRow"><label>📅 日付</label><input type="date" id="inDate"></div>
+    <input class="searchBox" id="inSearch" style="width:100%;margin-bottom:8px" placeholder="🔍 品名で絞り込み" oninput="renderInList()">
+    <div class="note">変わった品目だけ数字を直してください。空欄にした品目はこの日付では記録されません。</div>
+    <div id="inList"></div>
+    <button class="primaryBtn" id="inSaveBtn" onclick="saveInput()">この日付で保存</button>
+    <button class="closeBtn" onclick="closeInput()">キャンセル</button>
+  </div>
 </div>
 
 <!-- 履歴 -->
@@ -287,11 +301,12 @@ const DEFAULT_COMPANIES = ['産業新聞(非鉄)','産業新聞(鉄)','朝日工
 const S = {
   tab:'souba',
   alertDiff:50,
-  tableMode:false,
+  tableMode:true,
   tableCache:{},
-  souba:{ list:[], currentId:null, edits:{} },
-  client:{ list:[], currentId:null, edits:{} }
+  souba:{ list:[], currentId:null },
+  client:{ list:[], currentId:null }
 };
+const IN = { kind:null, values:{} };
 let linkEditing = null;
 
 function unlock(){
@@ -306,7 +321,7 @@ function unlock(){
 }
 if(sessionStorage.getItem('tankaAuth')==='1') document.getElementById('lock').style.display='none';
 
-function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2400); }
 function fmtDate(ts){ const d=new Date(ts); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
 function fmtMD(ts){ const d=new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`; }
 function fmtTime(ts){ const d=new Date(ts); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
@@ -319,15 +334,14 @@ function diffTxt(it){
   const d = it.p - it.pp;
   if(d>0) return {cls:'up', txt:`▲+${round2(d)}`};
   if(d<0) return {cls:'down', txt:`▼${round2(d)}`};
-  return {cls:'flat', txt:'±0'};
+  return null;
 }
 function compName(id){ const c=S.souba.list.find(x=>x.id===id); return c?c.name:'?'; }
 function adjTxt(a){ a=a||0; return (a>=0?'+':'')+a+'円'; }
-function getSaveTs(){
-  const v = document.getElementById('saveDate').value;
+function tsFromDateStr(v){
   if(!v || v===todayStr()) return Date.now();
   const [y,m,d] = v.split('-').map(Number);
-  return new Date(y, m-1, d, 12, 0, 0).getTime();
+  return new Date(y, m-1, d, 12, 0, 0).getTime() + (Date.now() % 3600000);
 }
 
 async function loadAll(){
@@ -354,19 +368,13 @@ async function loadAll(){
   S.tableCache = {};
   renderAll();
 }
-function reloadAll(){
-  if(hasEdits() && !confirm('未保存の変更があります。破棄して再読込しますか?')) return;
-  S.souba.edits={}; S.client.edits={};
-  loadAll().then(()=>toast('再読込しました'));
-}
-function hasEdits(){ return Object.keys(S.souba.edits).length>0 || Object.keys(S.client.edits).length>0; }
+function reloadAll(){ loadAll().then(()=>toast('再読込しました')); }
 
 function renderAll(){
   renderChips('souba'); renderChips('client');
   renderList('souba'); renderList('client');
   renderAlertBar();
   renderSettings();
-  updateSaveBar();
 }
 
 function renderAlertBar(){
@@ -392,7 +400,6 @@ function switchTab(tab){
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('act', ['souba','client','setting'][i]===tab));
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('act'));
   document.getElementById('page-'+tab).classList.add('act');
-  updateSaveBar();
 }
 function switchSetPane(kind){
   document.getElementById('st-souba').classList.toggle('act', kind==='souba');
@@ -407,16 +414,13 @@ function renderChips(kind){
   box.innerHTML = st.list.map(c=>`<button class="chip ${c.id===st.currentId?'act':''}" onclick="selectTarget('${kind}','${c.id}')">${esc(c.name)}</button>`).join('') || '<div class="empty">設定タブから登録してください</div>';
 }
 function selectTarget(kind,id){
-  const st = S[kind];
-  if(Object.keys(st.edits).length && !confirm('未保存の変更があります。破棄して切り替えますか?')) return;
-  st.edits = {}; st.currentId = id;
-  renderChips(kind); renderList(kind); updateSaveBar();
+  S[kind].currentId = id;
+  renderChips(kind); renderList(kind);
 }
 
 function toggleTable(){
   S.tableMode = !S.tableMode;
-  document.getElementById('tblBtn').classList.toggle('act', S.tableMode);
-  document.getElementById('tblBtn').textContent = S.tableMode ? '📝 入力' : '📋 表';
+  document.getElementById('tblBtn').textContent = S.tableMode ? '📝 一覧' : '📋 表';
   renderList('souba');
 }
 async function buildTable(company){
@@ -432,7 +436,7 @@ async function buildTable(company){
     if(!map[r.item][dk] || r.ts > map[r.item][dk].ts) map[r.item][dk] = {ts:r.ts, price:r.newPrice};
     if(!dateTs[dk] || r.ts > dateTs[dk]) dateTs[dk] = r.ts;
   });
-  const dates = Object.keys(dateTs).sort((a,b)=>dateTs[b]-dateTs[a]).slice(0,8);
+  const dates = Object.keys(dateTs).sort((a,b)=>dateTs[b]-dateTs[a]).slice(0,10);
   const result = {map, dates, dateTs};
   S.tableCache[company.id] = result;
   return result;
@@ -440,7 +444,7 @@ async function buildTable(company){
 async function renderTable(target, box){
   box.innerHTML = '<div class="empty">読み込み中…</div>';
   const {map, dates, dateTs} = await buildTable(target);
-  if(!dates.length){ box.innerHTML = '<div class="empty">まだ単価の記録がありません。入力画面(📝)で単価を入れて保存すると表ができていきます</div>'; return; }
+  if(!dates.length){ box.innerHTML = '<div class="empty">まだ記録がありません。<br>右上の「➕入力」から日付と単価を入れて保存すると、<br>ここにExcelと同じ表ができていきます</div>'; return; }
   const q = document.getElementById('soubaSearch').value.trim();
   let body = '';
   (target.items||[]).forEach(it=>{
@@ -485,8 +489,6 @@ function renderList(kind){
   let html = '';
   (target.items||[]).forEach((it,idx)=>{
     if(q && !it.n.includes(q)) return;
-    const edited = st.edits.hasOwnProperty(idx);
-    const val = edited ? st.edits[idx] : (it.p ?? '');
     const df = diffTxt(it);
     const linked = kind==='client' && it.link;
     html += `<div class="row ${isToday(it.t)?'today':''}">
@@ -495,52 +497,84 @@ function renderList(kind){
         <span class="sub">${it.t?`更新 ${fmtDate(it.t)}`:'未入力'}${it.pp!=null?` / 前回 ${it.pp}円`:''}${df?` <span class="${df.cls}">${df.txt}</span>`:''}</span>
         ${linked?`<span class="sub lk">🔗 ${esc(compName(it.link.cid))}/${esc(it.link.item)} ${adjTxt(it.link.adj)}</span>`:''}
       </button>
-      <input class="price ${edited?'chg':''} ${linked?'lkIn':''}" type="number" inputmode="decimal" step="any" placeholder="未設定" value="${val}" ${linked?'readonly onclick="toast(\'🔗連動品目は自動計算です(設定タブで変更)\')"':''} oninput="onPriceInput('${kind}',${idx},this)">
-      <span class="yen">円</span>
+      <div class="pv ${it.p==null?'unset':''}">${it.p!=null? it.p+'円':'未設定'}</div>
     </div>`;
   });
   box.innerHTML = html || '<div class="empty">該当する品名がありません</div>';
 }
 
-function onPriceInput(kind, idx, inp){
+/* ---------- 単価入力 ---------- */
+function openInput(kind){
+  const target = S[kind].list.find(c=>c.id===S[kind].currentId);
+  if(!target){ toast('先に会社を選んでください'); return; }
+  if(!(target.items||[]).length){ toast('設定タブで品名を登録してください'); return; }
+  IN.kind = kind;
+  IN.values = {};
+  document.getElementById('inputTitle').textContent = `➕ 単価入力:${target.name}`;
+  document.getElementById('inDate').value = todayStr();
+  document.getElementById('inSearch').value = '';
+  renderInList();
+  document.getElementById('inputOverlay').classList.add('show');
+}
+function renderInList(){
+  const kind = IN.kind;
+  const target = S[kind].list.find(c=>c.id===S[kind].currentId);
+  const q = document.getElementById('inSearch').value.trim();
+  let html = '';
+  (target.items||[]).forEach((it,idx)=>{
+    if(q && !it.n.includes(q)) return;
+    if(kind==='client' && it.link){
+      html += `<div class="inRow"><div class="n">${esc(it.n)}<small>🔗 連動(自動計算)</small></div><div class="lkNote">${it.p!=null?it.p+'円':'—'}</div></div>`;
+      return;
+    }
+    const raw = IN.values.hasOwnProperty(idx) ? IN.values[idx] : (it.p!=null? String(it.p) : '');
+    const changed = raw!=='' && it.p!=null && parseFloat(raw)!==it.p || (raw!=='' && it.p==null);
+    html += `<div class="inRow">
+      <div class="n">${esc(it.n)}<small>${it.p!=null?`前回 ${it.p}円${it.t?`(${fmtMD(it.t)})`:''}`:'まだ記録なし'}</small></div>
+      <input type="number" inputmode="decimal" step="any" value="${raw}" placeholder="記録しない" class="${changed?'chg':''}" oninput="IN.values[${idx}]=this.value; this.classList.toggle('chg', this.value!=='' && String(${it.p==null?'null':it.p})!==this.value)">
+    </div>`;
+  });
+  document.getElementById('inList').innerHTML = html || '<div class="empty">該当する品名がありません</div>';
+}
+function closeInput(){ document.getElementById('inputOverlay').classList.remove('show'); IN.kind=null; IN.values={}; }
+
+async function saveInput(){
+  const kind = IN.kind;
   const st = S[kind];
   const target = st.list.find(c=>c.id===st.currentId);
-  if(kind==='client' && target.items[idx].link) return;
-  const orig = target.items[idx].p;
-  const v = inp.value===''? null : parseFloat(inp.value);
-  if(v===null || isNaN(v) || v===orig){ delete st.edits[idx]; inp.classList.remove('chg'); }
-  else { st.edits[idx]=v; inp.classList.add('chg'); }
-  updateSaveBar();
-}
+  if(!target) return;
+  const dateVal = document.getElementById('inDate').value;
+  if(!dateVal){ toast('日付を入れてください'); return; }
+  const ts = tsFromDateStr(dateVal);
 
-function updateSaveBar(){
-  const bar = document.getElementById('saveBar');
-  const btn = document.getElementById('saveBtn');
-  if(S.tab==='setting'){ bar.classList.remove('show'); return; }
-  const n = Object.keys(S[S.tab].edits).length;
-  if(n>0){
-    if(!bar.classList.contains('show')) document.getElementById('saveDate').value = todayStr();
-    bar.classList.add('show'); btn.textContent=`変更 ${n}件を保存`; btn.disabled=false;
-  }
-  else bar.classList.remove('show');
-}
+  // 記録対象を集める(空欄はスキップ)
+  const records = [];
+  (target.items||[]).forEach((it,idx)=>{
+    if(kind==='client' && it.link) return;
+    const raw = IN.values.hasOwnProperty(idx) ? IN.values[idx] : (it.p!=null? String(it.p) : '');
+    if(raw==='') return;
+    const v = parseFloat(raw);
+    if(isNaN(v)) return;
+    records.push({idx, v, changed: v !== it.p});
+  });
+  if(!records.length){ toast('記録する単価がありません'); return; }
+  const changedCount = records.filter(r=>r.changed).length;
 
-async function saveChanges(){
-  const kind = S.tab;
-  const st = S[kind];
-  const target = st.list.find(c=>c.id===st.currentId);
-  const keys = Object.keys(st.edits);
-  if(!target || !keys.length) return;
-  const btn = document.getElementById('saveBtn');
-  btn.disabled = true; btn.textContent='保存中…';
+  const btn = document.getElementById('inSaveBtn');
+  btn.disabled = true; btn.textContent = '保存中…';
   try{
-    const now = getSaveTs();
-    const newItems = target.items.map((it,idx)=> st.edits.hasOwnProperty(idx) ? {...it, pp:(it.p!=null?it.p:it.pp??null), p:st.edits[idx], t:now} : it);
+    const newItems = target.items.map((it,idx)=>{
+      const rec = records.find(r=>r.idx===idx);
+      if(!rec) return it;
+      if(rec.changed) return {...it, pp:(it.p!=null?it.p:it.pp??null), p:rec.v, t:ts};
+      return it;
+    });
 
+    // 連動する取引先(相場入力時のみ、変更分だけ)
     let linkedUpdates = [];
-    if(kind==='souba'){
+    if(kind==='souba' && changedCount){
       const changedMap = {};
-      keys.forEach(k=>{ changedMap[target.items[+k].n] = st.edits[k]; });
+      records.filter(r=>r.changed).forEach(r=>{ changedMap[target.items[r.idx].n] = r.v; });
       S.client.list.forEach(cl=>{
         let touched = 0;
         const hist = [];
@@ -549,8 +583,8 @@ async function saveChanges(){
             const np = round2(changedMap[it.link.item] + (it.link.adj||0));
             if(np !== it.p){
               touched++;
-              hist.push({kind:'client', target:cl.name, item:it.n, oldPrice:it.p??null, newPrice:np, ts:now, auto:true});
-              return {...it, pp:(it.p!=null?it.p:it.pp??null), p:np, t:now};
+              hist.push({kind:'client', target:cl.name, item:it.n, oldPrice:it.p??null, newPrice:np, ts, auto:true});
+              return {...it, pp:(it.p!=null?it.p:it.pp??null), p:np, t:ts};
             }
           }
           return it;
@@ -566,35 +600,35 @@ async function saveChanges(){
 
     const batch = db.batch();
     const upd = {items:newItems};
-    if(kind==='client') upd.lastUpdated = now;
+    if(kind==='client') upd.lastUpdated = ts;
     batch.update(db.collection(COL[kind]).doc(target.id), upd);
-    keys.forEach(k=>{
-      const idx=+k;
+    records.forEach(r=>{
       batch.set(db.collection('tankaHistory').doc(), {
-        kind, target: target.name, item: target.items[idx].n,
-        oldPrice: target.items[idx].p ?? null, newPrice: st.edits[k], ts: now
+        kind, target: target.name, item: target.items[r.idx].n,
+        oldPrice: target.items[r.idx].p ?? null, newPrice: r.v, ts
       });
     });
     linkedUpdates.forEach(u=>{
-      batch.update(db.collection(COL.client).doc(u.cl.id), {items:u.items, lastUpdated:now});
+      batch.update(db.collection(COL.client).doc(u.cl.id), {items:u.items, lastUpdated:ts});
       u.hist.forEach(h=> batch.set(db.collection('tankaHistory').doc(), h));
     });
     await batch.commit();
 
     target.items = newItems;
-    if(kind==='client') target.lastUpdated = now;
-    linkedUpdates.forEach(u=>{ u.cl.items = u.items; u.cl.lastUpdated = now; });
-    st.edits = {};
+    if(kind==='client') target.lastUpdated = ts;
+    linkedUpdates.forEach(u=>{ u.cl.items = u.items; u.cl.lastUpdated = ts; });
     S.tableCache = {};
-    renderList('souba'); renderList('client'); renderAlertBar(); updateSaveBar();
+    closeInput();
+    renderList('souba'); renderList('client'); renderAlertBar();
     const linkedCount = linkedUpdates.reduce((s,u)=>s+u.touched,0);
-    toast(`✅ ${fmtDate(now)}付で${keys.length}件保存しました` + (linkedCount?`(連動${linkedCount}件も更新)`:''));
+    toast(`✅ ${fmtDate(ts)}付で${records.length}件記録(変更${changedCount}件${linkedCount?`・連動${linkedCount}件`:''})`);
   }catch(e){
     console.error(e); toast('❌ 保存に失敗しました');
-    btn.disabled=false; updateSaveBar();
   }
+  btn.disabled = false; btn.textContent = 'この日付で保存';
 }
 
+/* ---------- 履歴・グラフ ---------- */
 async function showHistory(kind, idx){
   const st = S[kind];
   const target = st.list.find(c=>c.id===st.currentId);
@@ -609,13 +643,13 @@ async function showHistory(kind, idx){
       .where('kind','==',kind).where('target','==',target.name).where('item','==',item.n).get();
     const rows = snap.docs.map(d=>d.data()).sort((a,b)=>b.ts-a.ts);
     if(!rows.length){ document.getElementById('histList').innerHTML='<div class="empty">履歴はまだありません</div>'; return; }
-    document.getElementById('histList').innerHTML = rows.slice(0,50).map(r=>{
-      const dir = r.oldPrice==null ? '' : (r.newPrice>r.oldPrice?'up':(r.newPrice<r.oldPrice?'down':''));
+    document.getElementById('histList').innerHTML = rows.slice(0,60).map(r=>{
+      const dir = (r.oldPrice==null||r.newPrice===r.oldPrice) ? '' : (r.newPrice>r.oldPrice?'up':'down');
       const arrow = dir==='up'?'▲':(dir==='down'?'▼':'');
-      const d = r.oldPrice==null ? '' : ` (${r.newPrice>r.oldPrice?'+':''}${round2(r.newPrice-r.oldPrice)})`;
-      return `<div class="histRow"><span class="d">${fmtDate(r.ts)}</span><span>${r.auto?'<span class="autoTag">🔗自動</span>':''}${r.oldPrice==null?'ー':r.oldPrice} → <span class="${dir}">${r.newPrice} ${arrow}${d}</span></span></div>`;
+      const d = (r.oldPrice==null||r.newPrice===r.oldPrice) ? '' : ` (${r.newPrice>r.oldPrice?'+':''}${round2(r.newPrice-r.oldPrice)})`;
+      return `<div class="histRow"><span class="d">${fmtDate(r.ts)}</span><span>${r.auto?'<span class="autoTag">🔗自動</span>':''}<span class="${dir}">${r.newPrice}円 ${arrow}${d}</span></span></div>`;
     }).join('');
-    if(rows.length>=2) drawChart(rows.slice(0,30).reverse().map(r=>r.newPrice));
+    if(rows.length>=2) drawChart(rows.slice(0,40).reverse().map(r=>r.newPrice));
   }catch(e){ console.error(e); document.getElementById('histList').innerHTML='<div class="empty">履歴の取得に失敗しました</div>'; }
 }
 function drawChart(vals){
@@ -637,6 +671,7 @@ function drawChart(vals){
 }
 function closeHist(){ document.getElementById('histOverlay').classList.remove('show'); }
 
+/* ---------- CSV ---------- */
 function csvCell(v){
   if(v==null) v='';
   v = String(v);
@@ -660,14 +695,13 @@ async function exportHistoryCSV(){
     const snap = await db.collection('tankaHistory').get();
     const data = snap.docs.map(d=>d.data()).sort((a,b)=>a.ts-b.ts);
     if(!data.length){ toast('履歴がまだありません'); return; }
-    const rows = [['日付','時刻','区分','会社・取引先','品名','旧単価','新単価','増減','自動更新']];
+    const rows = [['日付','区分','会社・取引先','品名','単価','増減','自動更新']];
     data.forEach(r=>{
       rows.push([
-        fmtDate(r.ts), fmtTime(r.ts),
+        fmtDate(r.ts),
         r.kind==='souba'?'相場':'取引先',
-        r.target, r.item,
-        r.oldPrice==null?'':r.oldPrice, r.newPrice,
-        r.oldPrice==null?'':round2(r.newPrice-r.oldPrice),
+        r.target, r.item, r.newPrice,
+        (r.oldPrice==null||r.newPrice===r.oldPrice)?'':round2(r.newPrice-r.oldPrice),
         r.auto?'○':''
       ]);
     });
@@ -688,6 +722,7 @@ function exportCurrentCSV(){
   toast(`📥 現在単価 ${rows.length-1}件を出力しました`);
 }
 
+/* ---------- 印刷 ---------- */
 async function printView(kind){
   const st = S[kind];
   const target = st.list.find(c=>c.id===st.currentId);
@@ -734,6 +769,7 @@ async function printView(kind){
   window.print();
 }
 
+/* ---------- 連動設定 ---------- */
 function openLink(idx){
   const sel = document.getElementById('setClientSel');
   const client = S.client.list.find(c=>c.id===sel.value);
@@ -812,6 +848,7 @@ async function removeLink(){
 }
 function closeLink(){ document.getElementById('linkOverlay').classList.remove('show'); linkEditing=null; }
 
+/* ---------- 設定 ---------- */
 function renderSettings(){
   document.getElementById('alertDiffInput').value = S.alertDiff;
   document.getElementById('companyTags').innerHTML = S.souba.list.map(c=>`<span class="tag">${esc(c.name)}<button onclick="delTarget('souba','${c.id}')">×</button></span>`).join('');
