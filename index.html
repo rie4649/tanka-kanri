@@ -13,7 +13,6 @@
   input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   input[type=number] { -moz-appearance:textfield; }
 
-  /* ===== ロック画面 ===== */
   #lock { position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center; padding:20px;
     background:radial-gradient(circle at 30% 20%, #1a5c38 0%, #0c2e1c 55%, #061a10 100%); transition:background 1s; }
   #lock.warn1 { background:radial-gradient(circle at 30% 20%, #6b3a10 0%, #3a1c08 55%, #1a0c04 100%); }
@@ -60,7 +59,6 @@
 
   .meta { font-size:12px; color:#6b7f70; margin-bottom:8px; padding-left:2px; font-weight:bold; }
 
-  /* 閲覧カード */
   .row { display:flex; align-items:center; gap:10px; background:#fff; border-radius:12px; padding:12px; margin-bottom:8px; box-shadow:0 1px 4px rgba(0,0,0,.07); }
   .iname { flex:1; text-align:left; background:none; border:none; font-size:16px; font-weight:bold; color:#1c2b21; padding:2px 0; min-width:0; word-break:break-all; line-height:1.4; }
   .sub { display:block; font-size:11px; color:#8a9b8f; font-weight:normal; margin-top:3px; }
@@ -132,8 +130,10 @@
   .inRow input.chg { background:#fff7d6; border-color:#eab308; font-weight:bold; }
   .inRow .lkNote { width:120px; font-size:11px; color:#0e7490; text-align:right; }
 
-  .histRow { display:flex; justify-content:space-between; padding:9px 4px; border-bottom:1px solid #edf3ee; font-size:14px; }
-  .histRow .d { color:#6b7f70; font-size:13px; }
+  .histRow { display:flex; align-items:center; gap:8px; padding:9px 4px; border-bottom:1px solid #edf3ee; font-size:14px; }
+  .histRow .d { color:#6b7f70; font-size:13px; flex:0 0 auto; }
+  .histRow .hv { flex:1; text-align:right; }
+  .histDel { background:none; border:none; font-size:15px; padding:2px 4px; flex:0 0 auto; opacity:.6; }
   .autoTag { color:#0e7490; font-size:11px; margin-right:4px; }
   .up { color:#c0392b; font-weight:bold; }
   .down { color:#1d4ed8; font-weight:bold; }
@@ -241,6 +241,11 @@
       <div class="tagList" id="soubaItemTags" style="margin-top:10px"></div>
     </div>
     <div class="card">
+      <h2>パスワード変更</h2>
+      <div class="note">アプリを開くときのパスワードを変更します(全員に反映されます)</div>
+      <div class="inline"><input id="newPass" placeholder="新しいパスワード"><button class="addBtn" onclick="savePass()">変更</button></div>
+    </div>
+    <div class="card">
       <h2>CSVエクスポート</h2>
       <div class="note">Excelでそのまま開けるCSVファイルをダウンロードします</div>
       <button class="addBtn" style="width:100%;margin-bottom:8px" onclick="exportHistoryCSV()">📥 単価履歴をCSV出力(全件)</button>
@@ -248,7 +253,7 @@
     </div>
     <div class="card">
       <h2>メンテナンス</h2>
-      <div class="note">「現在の単価」がおかしいとき(過去の日付で入力した後など)に押すと、履歴データから正しい最新単価を計算し直します</div>
+      <div class="note">「現在の単価」がおかしいときに押すと、履歴データから正しい最新単価を計算し直します。間違った履歴は、品名をタップ→履歴の🗑で削除できます(削除後も自動で再計算されます)</div>
       <button class="addBtn" style="width:100%" onclick="repairCurrent()">🔧 現在単価を履歴から再計算</button>
     </div>
   </div>
@@ -293,6 +298,7 @@
     <h3 id="histTitle"></h3>
     <div class="histSub" id="histSub"></div>
     <canvas id="histChart" width="640" height="320" style="display:none"></canvas>
+    <div class="note">間違った記録は🗑で削除できます。削除すると現在の単価も自動で計算し直されます。</div>
     <div id="histList"></div>
     <button class="closeBtn" onclick="closeHist()">閉じる</button>
   </div>
@@ -318,8 +324,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
-const PASSCODE = 's2292';
-
 const firebaseConfig = {
   apiKey: "AIzaSyD99Mx0MnGplSQjV7830bS7-gdCBSM9DGY",
   authDomain: "sekine-store.firebaseapp.com",
@@ -338,6 +342,7 @@ const FREQ_NEXT = { adhoc:'monthly', monthly:'half', half:'adhoc' };
 
 const S = {
   tab:'souba',
+  passcode:'s2292',
   tblSouba:false,
   tblClient:false,
   tableCache:{},
@@ -345,16 +350,21 @@ const S = {
   client:{ list:[], currentId:null }
 };
 const IN = { kind:null, values:{}, half:'A' };
+const HIST = { kind:null, idx:null };
 let linkEditing = null;
 
-/* ===== ロック画面 ===== */
+/* ===== パスワード ===== */
+db.collection('tankaConfig').doc('main').get().then(d=>{
+  if(d.exists && d.data().passcode) S.passcode = d.data().passcode;
+}).catch(()=>{});
+
 let pwFails = 0;
 let lockTimer = null;
 function unlock(){
   const lock = document.getElementById('lock');
   const msg = document.getElementById('lockMsg');
   const v = document.getElementById('pw').value;
-  if(v === PASSCODE){
+  if(v === S.passcode){
     sessionStorage.setItem('tankaAuth','1');
     lock.style.display='none';
     return;
@@ -391,6 +401,18 @@ function unlock(){
   }
 }
 if(sessionStorage.getItem('tankaAuth')==='1') document.getElementById('lock').style.display='none';
+
+async function savePass(){
+  const v = document.getElementById('newPass').value.trim();
+  if(v.length < 3){ toast('3文字以上で入力してください'); return; }
+  if(!confirm(`パスワードを「${v}」に変更しますか?\n(次回からこのパスワードで開きます)`)) return;
+  try{
+    await db.collection('tankaConfig').doc('main').set({passcode:v},{merge:true});
+    S.passcode = v;
+    document.getElementById('newPass').value='';
+    toast('✅ パスワードを変更しました');
+  }catch(e){ console.error(e); toast('❌ 変更に失敗: '+(e.message||e)); }
+}
 
 /* ===== 共通 ===== */
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
@@ -437,7 +459,6 @@ async function loadAll(){
     const snap = await db.collection(COL.souba).orderBy('order').get();
     let list = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if(list.length===0){
-      // 完全に空のとき(初回)だけ初期登録。削除した会社を勝手に復活させない
       const batch = db.batch();
       DEFAULT_COMPANIES.forEach((n,i)=>{ batch.set(db.collection(COL.souba).doc(), {name:n, order:i, freq:'adhoc', items:[]}); });
       await batch.commit();
@@ -499,7 +520,7 @@ function toggleTable(kind){
   renderList(kind);
 }
 
-/* ===== 表(履歴マトリクス) ===== */
+/* ===== 表 ===== */
 async function buildTable(kind, target){
   const freq = freqOf(kind, target);
   const cacheKey = kind+'_'+target.id+'_'+freq;
@@ -534,741 +555,4 @@ async function buildTable(kind, target){
 async function renderTable(kind, target, box){
   box.innerHTML = '<div class="empty">読み込み中…</div>';
   const {map, keys, keyTs, labelOf} = await buildTable(kind, target);
-  if(!keys.length){ box.innerHTML = '<div class="empty">まだ記録がありません。<br>「✏️入力」から単価を入れて保存すると、<br>ここに表ができていきます</div>'; return; }
-  const q = document.getElementById(kind+'Search').value.trim();
-  let body = '';
-  (target.items||[]).forEach(it=>{
-    if(q && !it.n.includes(q)) return;
-    let tds = '';
-    keys.forEach((dk,di)=>{
-      const cell = map[it.n]?.[dk];
-      let sub = '';
-      if(cell){
-        for(let j=di+1; j<keys.length; j++){
-          const prev = map[it.n]?.[keys[j]];
-          if(prev){
-            const d = round2(cell.price - prev.price);
-            if(d>0) sub = `<span class="cup">▲+${fmtNum(d)}</span>`;
-            else if(d<0) sub = `<span class="cdown">▼${fmtNum(d)}</span>`;
-            break;
-          }
-        }
-      }
-      tds += `<td class="${di===0?'latest':''}">${cell?fmtNum(cell.price):''}${sub}</td>`;
-    });
-    body += `<tr><td class="nm">${esc(it.n)}</td>${tds}</tr>`;
-  });
-  if(!body){ box.innerHTML = '<div class="empty">該当する品名がありません</div>'; return; }
-  box.innerHTML = `<div class="tblWrap"><table class="ttable">
-    <tr><th class="nm">品名</th>${keys.map(dk=>`<th>${labelOf(keyTs[dk])}</th>`).join('')}</tr>
-    ${body}
-  </table></div>`;
-}
-
-/* ===== 一覧(閲覧メイン) ===== */
-function renderList(kind){
-  const st = S[kind];
-  const box = document.getElementById(kind+'List');
-  const meta = document.getElementById(kind+'Meta');
-  const target = st.list.find(c=>c.id===st.currentId);
-  if(!target){ box.innerHTML='<div class="empty">まず設定タブから登録してください</div>'; meta.textContent=''; return; }
-  const freq = freqOf(kind, target);
-  const freqName = freq==='monthly'?'月一改定':(freq==='half'?'前半/後半改定':'都度改定');
-  meta.textContent = target.lastUpdated ? `最終更新: ${fmtApply(target.lastUpdated, freq)}(${freqName})` : `(${freqName})`;
-  if(kind==='souba') meta.textContent = target.lastUpdated ? `最終更新: ${fmtApply(target.lastUpdated, freq)}` : '';
-
-  const tbl = kind==='souba' ? S.tblSouba : S.tblClient;
-  if(tbl){ renderTable(kind, target, box); return; }
-
-  const q = document.getElementById(kind+'Search').value.trim();
-  let html = '';
-  (target.items||[]).forEach((it,idx)=>{
-    if(q && !it.n.includes(q)) return;
-    const df = diffOf(it);
-    const linked = kind==='client' && it.link;
-    html += `<div class="row">
-      <button class="iname" onclick="showHistory('${kind}',${idx})">
-        ${esc(it.n)}
-        <span class="sub">${fmtApply(it.t, freq)}${it.pp!=null?` / 前回 ${fmtNum(it.pp)}円`:''}</span>
-        ${linked?`<span class="sub lk">🔗 ${esc(compName(it.link.cid))}/${esc(it.link.item)} ${adjTxt(it.link.adj)}</span>`:''}
-      </button>
-      <div class="pcol">
-        ${it.p!=null?`<div class="pv">${fmtNum(it.p)}<span class="yen">円</span></div>`:`<div class="pv unset">未設定</div>`}
-        ${df?`<span class="diffBadge ${df.cls}">${df.txt}</span>`:(it.p!=null&&it.pp!=null?`<span class="diffBadge flat">±0</span>`:'')}
-      </div>
-    </div>`;
-  });
-  box.innerHTML = html || '<div class="empty">該当する品名がありません</div>';
-}
-
-/* ===== 単価入力(空欄スタート) ===== */
-function openInput(kind){
-  const target = S[kind].list.find(c=>c.id===S[kind].currentId);
-  if(!target){ toast('先に会社を選んでください'); return; }
-  if(!(target.items||[]).length){ toast('設定タブで品名を登録してください'); return; }
-  IN.kind = kind;
-  IN.values = {};
-  const freq = freqOf(kind, target);
-  document.getElementById('inputTitle').textContent = `✏️ 単価入力:${target.name}`;
-  document.getElementById('inDateRowD').style.display = freq==='adhoc' ? 'flex' : 'none';
-  document.getElementById('inDateRowM').style.display = freq==='monthly' ? 'flex' : 'none';
-  document.getElementById('inDateRowH').style.display = freq==='half' ? 'flex' : 'none';
-  document.getElementById('inDate').value = todayStr();
-  document.getElementById('inMonth').value = monthNowStr();
-  document.getElementById('inMonthH').value = monthNowStr();
-  setHalf(new Date().getDate()<=15 ? 'A' : 'B');
-  document.getElementById('inSearch').value = '';
-  document.getElementById('inSaveBtn').textContent = '保存';
-  renderInList();
-  document.getElementById('inputOverlay').classList.add('show');
-}
-function setHalf(h){
-  IN.half = h;
-  document.getElementById('halfA').classList.toggle('act', h==='A');
-  document.getElementById('halfB').classList.toggle('act', h==='B');
-}
-function renderInList(){
-  const kind = IN.kind;
-  const target = S[kind].list.find(c=>c.id===S[kind].currentId);
-  const freq = freqOf(kind, target);
-  const q = document.getElementById('inSearch').value.trim();
-  let html = '';
-  (target.items||[]).forEach((it,idx)=>{
-    if(q && !it.n.includes(q)) return;
-    if(kind==='client' && it.link){
-      html += `<div class="inRow"><div class="n">${esc(it.n)}<small>🔗 連動(自動計算)</small></div><div class="lkNote">${it.p!=null?fmtNum(it.p)+'円':'—'}</div></div>`;
-      return;
-    }
-    const raw = IN.values.hasOwnProperty(idx) ? IN.values[idx] : '';
-    const ph = it.p!=null ? `前回 ${fmtNum(it.p)}` : '未入力';
-    html += `<div class="inRow">
-      <div class="n">${esc(it.n)}<small>${it.p!=null?`前回 ${fmtNum(it.p)}円(${fmtApply(it.t, freq)})`:'まだ記録なし'}</small></div>
-      <input type="number" inputmode="decimal" step="any" value="${raw}" placeholder="${ph}" class="${raw!==''?'chg':''}" oninput="IN.values[${idx}]=this.value; this.classList.toggle('chg', this.value!=='')">
-    </div>`;
-  });
-  document.getElementById('inList').innerHTML = html || '<div class="empty">該当する品名がありません</div>';
-}
-function closeInput(){ document.getElementById('inputOverlay').classList.remove('show'); IN.kind=null; IN.values={}; }
-
-async function saveInput(){
-  const kind = IN.kind;
-  const st = S[kind];
-  const target = st.list.find(c=>c.id===st.currentId);
-  if(!target) return;
-  const freq = freqOf(kind, target);
-  let ts;
-  if(freq==='monthly'){
-    const mv = document.getElementById('inMonth').value;
-    if(!mv){ toast('適用月を選んでください'); return; }
-    ts = tsFromMonthStr(mv);
-  } else if(freq==='half'){
-    const mv = document.getElementById('inMonthH').value;
-    if(!mv){ toast('適用月を選んでください'); return; }
-    ts = tsFromHalf(mv, IN.half);
-  } else {
-    const dv = document.getElementById('inDate').value;
-    if(!dv){ toast('日付を入れてください'); return; }
-    ts = tsFromDateStr(dv);
-  }
-
-  // 空欄=記録しない。入力した品目だけ記録
-  const records = [];
-  (target.items||[]).forEach((it,idx)=>{
-    if(kind==='client' && it.link) return;
-    const raw = IN.values.hasOwnProperty(idx) ? IN.values[idx] : '';
-    if(raw==='') return;
-    const v = parseFloat(raw);
-    if(isNaN(v)) return;
-    records.push({idx, v});
-  });
-  if(!records.length){ toast('入力された単価がありません'); return; }
-
-  const btn = document.getElementById('inSaveBtn');
-  btn.disabled = true; btn.textContent = '保存中…';
-  try{
-    // 適用日が最新の記録だけを「現在単価」に反映(過去日付なら履歴のみ)
-    const newItems = target.items.map((it,idx)=>{
-      const rec = records.find(r=>r.idx===idx);
-      if(!rec) return it;
-      if(ts >= (it.t||0)){
-        if(rec.v === it.p) return {...it, t:ts};
-        return {...it, pp:(it.p!=null?it.p:it.pp??null), p:rec.v, t:ts};
-      }
-      return it; // 過去日付 → 現在単価は変えない
-    });
-
-    let linkedUpdates = [];
-    if(kind==='souba'){
-      const changedMap = {};
-      records.forEach(r=>{
-        const it = target.items[r.idx];
-        if(ts >= (it.t||0) && r.v !== it.p) changedMap[it.n] = r.v;
-      });
-      if(Object.keys(changedMap).length){
-        S.client.list.forEach(cl=>{
-          let touched = 0;
-          const hist = [];
-          const items = (cl.items||[]).map(it=>{
-            if(it.link && it.link.cid===target.id && changedMap.hasOwnProperty(it.link.item)){
-              const np = round2(changedMap[it.link.item] + (it.link.adj||0));
-              if(np !== it.p && ts >= (it.t||0)){
-                touched++;
-                hist.push({kind:'client', target:cl.name, item:it.n, oldPrice:it.p??null, newPrice:np, ts, auto:true});
-                return {...it, pp:(it.p!=null?it.p:it.pp??null), p:np, t:ts};
-              }
-            }
-            return it;
-          });
-          if(touched) linkedUpdates.push({cl, items, hist, touched});
-        });
-        if(linkedUpdates.length){
-          const total = linkedUpdates.reduce((s,u)=>s+u.touched,0);
-          const names = linkedUpdates.map(u=>u.cl.name).join('、');
-          if(!confirm(`🔗連動している取引先単価 ${total}件(${names})も一緒に更新します。\n\nOK = 一緒に更新\nキャンセル = 相場だけ保存`)) linkedUpdates = [];
-        }
-      }
-    }
-
-    const batch = db.batch();
-    const upd = {items:newItems};
-    if(kind==='client') upd.lastUpdated = Math.max(ts, target.lastUpdated||0);
-    else upd.lastUpdated = Math.max(ts, target.lastUpdated||0);
-    batch.update(db.collection(COL[kind]).doc(target.id), upd);
-    records.forEach(r=>{
-      const it = target.items[r.idx];
-      const isCurrent = ts >= (it.t||0);
-      batch.set(db.collection('tankaHistory').doc(), {
-        kind, target: target.name, item: it.n,
-        oldPrice: isCurrent ? (it.p ?? null) : null,
-        newPrice: r.v, ts
-      });
-    });
-    linkedUpdates.forEach(u=>{
-      batch.update(db.collection(COL.client).doc(u.cl.id), {items:u.items, lastUpdated:ts});
-      u.hist.forEach(h=> batch.set(db.collection('tankaHistory').doc(), h));
-    });
-    await batch.commit();
-
-    target.items = newItems;
-    target.lastUpdated = upd.lastUpdated;
-    linkedUpdates.forEach(u=>{ u.cl.items = u.items; u.cl.lastUpdated = ts; });
-    S.tableCache = {};
-    closeInput();
-    renderList('souba'); renderList('client');
-    const linkedCount = linkedUpdates.reduce((s,u)=>s+u.touched,0);
-    toast(`✅ ${fmtApply(ts, freq)}で${records.length}件記録しました${linkedCount?`(連動${linkedCount}件も更新)`:''}`);
-  }catch(e){
-    console.error(e); toast('❌ 保存に失敗: '+(e.message||e));
-  }
-  btn.disabled = false; btn.textContent = '保存';
-}
-
-/* ===== 履歴・グラフ ===== */
-async function showHistory(kind, idx){
-  const st = S[kind];
-  const target = st.list.find(c=>c.id===st.currentId);
-  if(!target) return;
-  const freq = freqOf(kind, target);
-  const item = target.items[idx];
-  document.getElementById('histTitle').textContent = `${target.name} / ${item.n}`;
-  const df = diffOf(item);
-  document.getElementById('histSub').innerHTML = item.p!=null ? `現在 <span style="font-size:20px">${fmtNum(item.p)}円</span> ${df?`<span class="${df.cls}">${df.txt}</span>`:''}` : '';
-  document.getElementById('histList').innerHTML = '<div class="empty">読み込み中…</div>';
-  document.getElementById('histChart').style.display='none';
-  document.getElementById('histOverlay').classList.add('show');
-  try{
-    const snap = await db.collection('tankaHistory')
-      .where('kind','==',kind).where('target','==',target.name).where('item','==',item.n).get();
-    const rows = snap.docs.map(d=>d.data()).sort((a,b)=>b.ts-a.ts);
-    if(!rows.length){ document.getElementById('histList').innerHTML='<div class="empty">履歴はまだありません</div>'; return; }
-    document.getElementById('histList').innerHTML = rows.slice(0,60).map(r=>{
-      const dir = (r.oldPrice==null||r.newPrice===r.oldPrice) ? '' : (r.newPrice>r.oldPrice?'up':'down');
-      const arrow = dir==='up'?'▲':(dir==='down'?'▼':'');
-      const d = (r.oldPrice==null||r.newPrice===r.oldPrice) ? '' : ` (${r.newPrice>r.oldPrice?'+':''}${fmtNum(round2(r.newPrice-r.oldPrice))})`;
-      return `<div class="histRow"><span class="d">${fmtApply(r.ts, freq)}</span><span>${r.auto?'<span class="autoTag">🔗自動</span>':''}<span class="${dir}">${fmtNum(r.newPrice)}円 ${arrow}${d}</span></span></div>`;
-    }).join('');
-    if(rows.length>=2){
-      const asc = rows.slice(0,40).reverse();
-      drawChart(asc.map(r=>r.newPrice), fmtApply(asc[0].ts,freq), fmtApply(asc[asc.length-1].ts,freq));
-    }
-  }catch(e){ console.error(e); document.getElementById('histList').innerHTML='<div class="empty">履歴の取得に失敗しました</div>'; }
-}
-function drawChart(vals, firstLabel, lastLabel){
-  const cv = document.getElementById('histChart');
-  cv.style.display='block';
-  const ctx = cv.getContext('2d');
-  ctx.clearRect(0,0,cv.width,cv.height);
-  const min=Math.min(...vals), max=Math.max(...vals), padL=14, padR=14, padT=34, padB=36;
-  const W=cv.width, H=cv.height;
-  const x=i=> padL + (W-padL-padR)*(vals.length===1?0.5:i/(vals.length-1));
-  const y=v=> max===min ? (H-padB+padT)/2 : (H-padB) - (H-padT-padB)*((v-min)/(max-min));
-  // 塗り
-  const grad = ctx.createLinearGradient(0,padT,0,H-padB);
-  grad.addColorStop(0,'rgba(22,163,74,.30)');
-  grad.addColorStop(1,'rgba(22,163,74,.02)');
-  ctx.beginPath();
-  vals.forEach((v,i)=> i? ctx.lineTo(x(i),y(v)) : ctx.moveTo(x(i),y(v)));
-  ctx.lineTo(x(vals.length-1), H-padB); ctx.lineTo(x(0), H-padB); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-  // 線
-  ctx.strokeStyle='#16a34a'; ctx.lineWidth=4; ctx.beginPath();
-  vals.forEach((v,i)=> i? ctx.lineTo(x(i),y(v)) : ctx.moveTo(x(i),y(v)));
-  ctx.stroke();
-  ctx.fillStyle='#166534';
-  vals.forEach((v,i)=>{ ctx.beginPath(); ctx.arc(x(i),y(v),5,0,7); ctx.fill(); });
-  // ラベル
-  ctx.fillStyle='#374151'; ctx.font='bold 22px sans-serif';
-  ctx.fillText(`高 ${fmtNum(max)}`, padL, 24);
-  ctx.fillText(`安 ${fmtNum(min)}`, W/2, 24);
-  ctx.fillStyle='#6b7f70'; ctx.font='19px sans-serif';
-  ctx.fillText(firstLabel, padL, H-10);
-  const lw = ctx.measureText(lastLabel).width;
-  ctx.fillText(lastLabel, W-padR-lw, H-10);
-}
-function closeHist(){ document.getElementById('histOverlay').classList.remove('show'); }
-
-/* ===== CSV ===== */
-function csvCell(v){
-  if(v==null) v='';
-  v = String(v);
-  return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
-}
-function downloadCSV(filename, rows){
-  const csv = rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
-  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-}
-function ymd(){ const d=new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
-
-async function exportHistoryCSV(){
-  toast('履歴を取得中…');
-  try{
-    const snap = await db.collection('tankaHistory').get();
-    const data = snap.docs.map(d=>d.data()).sort((a,b)=>a.ts-b.ts);
-    if(!data.length){ toast('履歴がまだありません'); return; }
-    const rows = [['日付','区分','会社・取引先','品名','単価','増減','自動更新']];
-    data.forEach(r=>{
-      rows.push([
-        fmtDate(r.ts),
-        r.kind==='souba'?'相場':'取引先',
-        r.target, r.item, r.newPrice,
-        (r.oldPrice==null||r.newPrice===r.oldPrice)?'':round2(r.newPrice-r.oldPrice),
-        r.auto?'○':''
-      ]);
-    });
-    downloadCSV(`tanka-rireki_${ymd()}.csv`, rows);
-    toast(`📥 履歴 ${data.length}件を出力しました`);
-  }catch(e){ console.error(e); toast('❌ 出力に失敗しました'); }
-}
-function exportCurrentCSV(){
-  const rows = [['区分','会社・取引先','品名','前回単価','現在単価','増減','適用','連動']];
-  S.souba.list.forEach(c=>{
-    const freq = freqOf('souba', c);
-    (c.items||[]).forEach(it=>{
-      rows.push(['相場', c.name, it.n, it.pp??'', it.p??'', (it.p!=null&&it.pp!=null)?round2(it.p-it.pp):'', it.t?fmtApply(it.t,freq):'', '']);
-    });
-  });
-  S.client.list.forEach(c=>{
-    const freq = freqOf('client', c);
-    (c.items||[]).forEach(it=>{
-      rows.push(['取引先', c.name, it.n, it.pp??'', it.p??'', (it.p!=null&&it.pp!=null)?round2(it.p-it.pp):'', it.t?fmtApply(it.t,freq):'', it.link?`${compName(it.link.cid)}/${it.link.item} ${adjTxt(it.link.adj)}`:'']);
-    });
-  });
-  if(rows.length===1){ toast('出力できるデータがありません'); return; }
-  downloadCSV(`tanka-genzai_${ymd()}.csv`, rows);
-  toast(`📥 現在単価 ${rows.length-1}件を出力しました`);
-}
-
-/* ===== 印刷 ===== */
-async function printView(kind){
-  const st = S[kind];
-  const target = st.list.find(c=>c.id===st.currentId);
-  if(!target || !(target.items||[]).length){ toast('印刷する品目がありません'); return; }
-  const freq = freqOf(kind, target);
-  const tbl = kind==='souba' ? S.tblSouba : S.tblClient;
-
-  if(tbl){
-    const {map, keys, keyTs, labelOf} = await buildTable(kind, target);
-    if(!keys.length){ toast('まだ単価の記録がありません'); return; }
-    const body = (target.items||[]).map(it=>{
-      const tds = keys.map(dk=>{
-        const cell = map[it.n]?.[dk];
-        return `<td class="num">${cell?fmtNum(cell.price):''}</td>`;
-      }).join('');
-      return `<tr><td>${esc(it.n)}</td>${tds}</tr>`;
-    }).join('');
-    document.getElementById('printArea').innerHTML = `
-      <h2>単価表:${esc(target.name)}</h2>
-      <div class="pdate">出力日 ${fmtDate(Date.now())}(株式会社関根商店)</div>
-      <table>
-        <tr><th>品名</th>${keys.map(dk=>`<th>${labelOf(keyTs[dk])}</th>`).join('')}</tr>
-        ${body}
-      </table>`;
-    window.print();
-    return;
-  }
-
-  const rows = target.items.map(it=>{
-    const df = diffOf(it);
-    return `<tr>
-      <td>${esc(it.n)}${(kind==='client'&&it.link)?' 🔗':''}</td>
-      <td class="num">${it.pp!=null?fmtNum(it.pp):'ー'}</td>
-      <td class="num"><b>${it.p!=null?fmtNum(it.p):'ー'}</b></td>
-      <td class="num">${df?df.txt:'ー'}</td>
-      <td>${it.t?fmtApply(it.t,freq):'ー'}</td>
-    </tr>`;
-  }).join('');
-  document.getElementById('printArea').innerHTML = `
-    <h2>単価表:${esc(target.name)}${target.lastUpdated&&freq!=='adhoc'?`(${fmtApply(target.lastUpdated,freq)})`:''}</h2>
-    <div class="pdate">出力日 ${fmtDate(Date.now())}(株式会社関根商店)</div>
-    <table>
-      <tr><th>品名</th><th>前回</th><th>現在単価(円)</th><th>増減</th><th>適用</th></tr>
-      ${rows}
-    </table>`;
-  window.print();
-}
-
-/* ===== 連動設定 ===== */
-function openLink(idx){
-  const sel = document.getElementById('setClientSel');
-  const client = S.client.list.find(c=>c.id===sel.value);
-  if(!client) return;
-  const it = client.items[idx];
-  linkEditing = {clientId:client.id, idx};
-  document.getElementById('linkTitle').textContent = `🔗 「${it.n}」の連動設定`;
-  const cSel = document.getElementById('linkCompanySel');
-  cSel.innerHTML = S.souba.list.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  if(it.link && S.souba.list.find(c=>c.id===it.link.cid)) cSel.value = it.link.cid;
-  fillLinkItems();
-  if(it.link) document.getElementById('linkItemSel').value = it.link.item;
-  document.getElementById('linkAdj').value = it.link ? (it.link.adj||0) : '';
-  document.getElementById('linkRemoveBtn').style.display = it.link ? 'block' : 'none';
-  updateLinkPreview();
-  document.getElementById('linkOverlay').classList.add('show');
-}
-function fillLinkItems(){
-  const cid = document.getElementById('linkCompanySel').value;
-  const comp = S.souba.list.find(c=>c.id===cid);
-  document.getElementById('linkItemSel').innerHTML = (comp?.items||[]).map(it=>`<option value="${esc(it.n)}">${esc(it.n)}${it.p!=null?`(${fmtNum(it.p)}円)`:''}</option>`).join('') || '<option value="">品名がありません</option>';
-  updateLinkPreview();
-}
-function updateLinkPreview(){
-  const cid = document.getElementById('linkCompanySel').value;
-  const itemName = document.getElementById('linkItemSel').value;
-  const adj = parseFloat(document.getElementById('linkAdj').value)||0;
-  const src = S.souba.list.find(c=>c.id===cid)?.items.find(i=>i.n===itemName);
-  document.getElementById('linkPreview').textContent = (src && src.p!=null) ? `現在の計算結果: ${fmtNum(src.p)}円 ${adj>=0?'+':''}${fmtNum(adj)}円 = ${fmtNum(round2(src.p+adj))}円(相場の適用日: ${src.t?fmtDate(src.t):'ー'})` : '連動元にまだ単価が入っていません(相場を保存すると自動計算されます)';
-}
-document.getElementById('linkItemSel').addEventListener('change', updateLinkPreview);
-document.getElementById('linkAdj').addEventListener('input', updateLinkPreview);
-
-async function saveLink(){
-  if(!linkEditing) return;
-  const cid = document.getElementById('linkCompanySel').value;
-  const itemName = document.getElementById('linkItemSel').value;
-  const adj = parseFloat(document.getElementById('linkAdj').value)||0;
-  if(!cid || !itemName){ toast('連動元を選んでください'); return; }
-  try{
-    const clientId = linkEditing.clientId;
-    const idx = linkEditing.idx;
-    const now = Date.now();
-    await db.runTransaction(async tx=>{
-      const ref = db.collection(COL.client).doc(clientId);
-      const doc = await tx.get(ref);
-      if(!doc.exists) throw new Error('取引先が見つかりません');
-      const data = doc.data();
-      const items = [...(data.items||[])];
-      if(!items[idx]) throw new Error('品目が見つかりません');
-      const it = items[idx];
-      let nit = {...it, link:{cid, item:itemName, adj}};
-      const src = S.souba.list.find(c=>c.id===cid)?.items.find(i=>i.n===itemName);
-      let hist = null;
-      if(src && src.p!=null){
-        const np = round2(src.p+adj);
-        if(np !== it.p){
-          nit = {...nit, pp:(it.p!=null?it.p:it.pp??null), p:np, t:now};
-          hist = {kind:'client', target:data.name, item:it.n, oldPrice:it.p??null, newPrice:np, ts:now, auto:true};
-        }
-      }
-      items[idx] = nit;
-      tx.update(ref, {items, lastUpdated:now});
-      if(hist) tx.set(db.collection('tankaHistory').doc(), hist);
-    });
-    closeLink();
-    await loadAll();
-    toast('🔗 連動を設定しました');
-  }catch(e){ console.error(e); toast('❌ 連動設定に失敗: '+(e.message||e)); }
-}
-async function removeLink(){
-  if(!linkEditing) return;
-  if(!confirm('連動を解除しますか?(単価は今のまま残り、手入力に戻ります)')) return;
-  try{
-    const clientId = linkEditing.clientId;
-    const idx = linkEditing.idx;
-    await db.runTransaction(async tx=>{
-      const ref = db.collection(COL.client).doc(clientId);
-      const doc = await tx.get(ref);
-      const items = [...(doc.data().items||[])];
-      const {link, ...rest} = items[idx];
-      items[idx] = rest;
-      tx.update(ref, {items});
-    });
-    closeLink();
-    await loadAll();
-    toast('連動を解除しました');
-  }catch(e){ console.error(e); toast('❌ 解除に失敗: '+(e.message||e)); }
-}
-function closeLink(){ document.getElementById('linkOverlay').classList.remove('show'); linkEditing=null; }
-
-/* ===== メンテナンス: 現在単価の再計算 ===== */
-async function repairCurrent(){
-  if(!confirm('履歴データから「現在の単価」を計算し直します。\n(適用日がいちばん新しい記録が現在単価になります)\nよろしいですか?')) return;
-  toast('再計算中…少しお待ちください');
-  try{
-    let fixed = 0;
-    for(const kind of ['souba','client']){
-      for(const c of S[kind].list){
-        if(!(c.items||[]).length) continue;
-        const snap = await db.collection('tankaHistory')
-          .where('kind','==',kind).where('target','==',c.name).get();
-        const rows = snap.docs.map(d=>d.data());
-        if(!rows.length) continue;
-        const byItem = {};
-        rows.forEach(r=>{ (byItem[r.item]=byItem[r.item]||[]).push(r); });
-        let changed = false;
-        const items = c.items.map(it=>{
-          const hs = byItem[it.n];
-          if(!hs || !hs.length) return it;
-          hs.sort((a,b)=>b.ts-a.ts);
-          const latest = hs[0];
-          let prevVal = null;
-          for(let i=1;i<hs.length;i++){ if(hs[i].newPrice !== latest.newPrice){ prevVal = hs[i].newPrice; break; } }
-          const np=latest.newPrice, nt=latest.ts, npp=(prevVal!=null?prevVal:(it.pp??null));
-          if(np!==it.p || nt!==it.t || npp!==it.pp){ changed=true; fixed++; return {...it, p:np, t:nt, pp:npp}; }
-          return it;
-        });
-        if(changed) await db.collection(COL[kind]).doc(c.id).update({items});
-      }
-    }
-    await loadAll();
-    toast(fixed ? `✅ ${fixed}品目の現在単価を直しました` : '✅ すべて正常でした(修正なし)');
-  }catch(e){ console.error(e); toast('❌ 再計算に失敗: '+(e.message||e)); }
-}
-
-/* ===== 並び順変更 ===== */
-async function moveTarget(kind, id, dir){
-  const list = S[kind].list;
-  const i = list.findIndex(c=>c.id===id);
-  const j = i + dir;
-  if(i<0 || j<0 || j>=list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
-  try{
-    const batch = db.batch();
-    list.forEach((c,idx2)=>{ batch.update(db.collection(COL[kind]).doc(c.id), {order: idx2}); });
-    await batch.commit();
-    renderChips(kind); renderSettings();
-  }catch(e){ console.error(e); toast('❌ 並び替えに失敗: '+(e.message||e)); }
-}
-async function moveItem(kind, idx, dir){
-  const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
-  const targetId = sel.value;
-  const j = idx + dir;
-  try{
-    await db.runTransaction(async tx=>{
-      const ref = db.collection(COL[kind]).doc(targetId);
-      const doc = await tx.get(ref);
-      const items = [...(doc.data().items||[])];
-      if(j<0 || j>=items.length) return;
-      [items[idx], items[j]] = [items[j], items[idx]];
-      tx.update(ref, {items});
-    });
-    await loadAll();
-  }catch(e){ console.error(e); toast('❌ 並び替えに失敗: '+(e.message||e)); }
-}
-
-/* ===== 設定 ===== */
-function renderSettings(){
-  document.getElementById('companyTags').innerHTML = S.souba.list.map((c,i)=>{
-    const f = freqOf('souba', c);
-    return `<div class="tagRow">
-      <span class="tn">${esc(c.name)}</span>
-      <button class="freqBtn ${f}" onclick="toggleFreq('souba','${c.id}')">${FREQ_LABEL[f]}</button>
-      <button class="ordBtn" onclick="moveTarget('souba','${c.id}',-1)" ${i===0?'disabled':''}>↑</button>
-      <button class="ordBtn" onclick="moveTarget('souba','${c.id}',1)" ${i===S.souba.list.length-1?'disabled':''}>↓</button>
-      <button class="miniDel" onclick="delTarget('souba','${c.id}')">×</button>
-    </div>`;
-  }).join('');
-  document.getElementById('clientTags').innerHTML = S.client.list.map((c,i)=>{
-    const f = freqOf('client', c);
-    return `<div class="tagRow">
-      <span class="tn">${esc(c.name)}</span>
-      <button class="freqBtn ${f}" onclick="toggleFreq('client','${c.id}')">${FREQ_LABEL[f]}</button>
-      <button class="ordBtn" onclick="moveTarget('client','${c.id}',-1)" ${i===0?'disabled':''}>↑</button>
-      <button class="ordBtn" onclick="moveTarget('client','${c.id}',1)" ${i===S.client.list.length-1?'disabled':''}>↓</button>
-      <button class="miniDel" onclick="delTarget('client','${c.id}')">×</button>
-    </div>`;
-  }).join('') || '<div class="note">まだ登録がありません</div>';
-  ['souba','client'].forEach(kind=>{
-    const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
-    const cur = sel.value;
-    sel.innerHTML = S[kind].list.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
-    if(cur && S[kind].list.find(c=>c.id===cur)) sel.value=cur;
-    renderSettingItems(kind);
-  });
-}
-async function toggleFreq(kind, id){
-  const c = S[kind].list.find(x=>x.id===id);
-  if(!c) return;
-  const next = FREQ_NEXT[freqOf(kind, c)];
-  try{
-    await db.collection(COL[kind]).doc(id).update({freq: next});
-    c.freq = next;
-    S.tableCache = {};
-    renderSettings(); renderList(kind);
-    toast(`「${c.name}」を${FREQ_LABEL[next]}に変更しました`);
-  }catch(e){ console.error(e); toast('❌ 変更に失敗: '+(e.message||e)); }
-}
-function renderSettingItems(kind){
-  const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
-  const target = S[kind].list.find(c=>c.id===sel.value);
-  const box = document.getElementById(kind==='souba'?'soubaItemTags':'clientItemTags');
-  if(!target){ box.innerHTML=''; return; }
-  const items = target.items||[];
-  if(kind==='souba'){
-    box.innerHTML = items.map((it,idx)=>`<div class="setRow">
-      <span class="sn">${esc(it.n)}</span>
-      <button class="ordBtn" onclick="moveItem('souba',${idx},-1)" ${idx===0?'disabled':''}>↑</button>
-      <button class="ordBtn" onclick="moveItem('souba',${idx},1)" ${idx===items.length-1?'disabled':''}>↓</button>
-      <button class="miniDel" onclick="delItem('souba',${idx})">×</button>
-    </div>`).join('') || '<div class="note">まだ品名がありません</div>';
-  } else {
-    box.innerHTML = items.map((it,idx)=>`<div class="setRow">
-      <span class="sn">${esc(it.n)}${it.link?`<span class="lk">🔗 ${esc(compName(it.link.cid))}/${esc(it.link.item)} ${adjTxt(it.link.adj)}</span>`:''}</span>
-      <button class="miniBtn" onclick="openLink(${idx})">連動</button>
-      <button class="ordBtn" onclick="moveItem('client',${idx},-1)" ${idx===0?'disabled':''}>↑</button>
-      <button class="ordBtn" onclick="moveItem('client',${idx},1)" ${idx===items.length-1?'disabled':''}>↓</button>
-      <button class="miniDel" onclick="delItem('client',${idx})">×</button>
-    </div>`).join('') || '<div class="note">まだ品名がありません</div>';
-  }
-}
-async function addTarget(kind){
-  const inp = document.getElementById(kind==='souba'?'newCompany':'newClient');
-  const name = inp.value.trim();
-  if(!name){ toast('名前を入力してください'); return; }
-  if(S[kind].list.find(c=>c.name===name)){ toast('同じ名前がすでにあります'); return; }
-  try{
-    const order = S[kind].list.length ? Math.max(...S[kind].list.map(c=>c.order||0))+1 : 0;
-    const doc = {name, order, items:[], freq: kind==='client' ? 'monthly' : 'adhoc'};
-    await db.collection(COL[kind]).add(doc);
-    inp.value='';
-    await loadAll(); toast(`「${name}」を追加しました`);
-  }catch(e){ console.error(e); toast('❌ 追加に失敗: '+(e.message||e)); }
-}
-async function delTarget(kind,id){
-  const t = S[kind].list.find(c=>c.id===id);
-  if(!t) return;
-  if(!confirm(`「${t.name}」を削除しますか?\n(登録した品名・単価も見えなくなります)`)) return;
-  try{
-    await db.collection(COL[kind]).doc(id).delete();
-    await loadAll(); toast('削除しました');
-  }catch(e){ console.error(e); toast('❌ 削除に失敗: '+(e.message||e)); }
-}
-async function addItem(kind){
-  const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
-  const nameInp = document.getElementById(kind==='souba'?'newSoubaItem':'newClientItem');
-  const priceInp = document.getElementById(kind==='souba'?'newSoubaPrice':'newClientPrice');
-  const targetId = sel.value;
-  const name = nameInp.value.trim();
-  if(!targetId){ toast('会社・取引先を選んでください'); return; }
-  if(!name){ toast('品名を入力してください'); return; }
-  const p = priceInp.value===''? null : parseFloat(priceInp.value);
-  const ok = p!=null && !isNaN(p);
-  try{
-    await db.runTransaction(async tx=>{
-      const ref = db.collection(COL[kind]).doc(targetId);
-      const doc = await tx.get(ref);
-      if(!doc.exists) throw new Error('登録先が見つかりません');
-      const items = [...(doc.data().items||[])];
-      if(items.find(it=>it.n===name)) throw new Error('同じ品名がすでにあります');
-      items.push({n:name, p:ok?p:null, pp:null, t:ok?Date.now():null});
-      tx.update(ref, {items});
-    });
-    nameInp.value=''; priceInp.value='';
-    await loadAll(); toast(`「${name}」を追加しました`);
-  }catch(e){ console.error(e); toast('❌ '+(e.message||'追加に失敗しました')); }
-}
-async function bulkAdd(kind){
-  const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
-  const ta = document.getElementById(kind==='souba'?'bulkSouba':'bulkClient');
-  const targetId = sel.value;
-  if(!targetId){ toast('会社・取引先を選んでください'); return; }
-  const lines = ta.value.split('\n').map(l=>l.trim()).filter(Boolean);
-  if(!lines.length){ toast('登録する品名を貼り付けてください'); return; }
-  try{
-    let added=0, skipped=0;
-    await db.runTransaction(async tx=>{
-      const ref = db.collection(COL[kind]).doc(targetId);
-      const doc = await tx.get(ref);
-      if(!doc.exists) throw new Error('登録先が見つかりません');
-      const items = [...(doc.data().items||[])];
-      added=0; skipped=0;
-      lines.forEach(line=>{
-        const parts = line.split(/[,、\t]/).map(s=>s.trim());
-        const name = parts[0];
-        if(!name) return;
-        if(items.find(it=>it.n===name)){ skipped++; return; }
-        const p = parts[1]!==undefined && parts[1]!=='' ? parseFloat(parts[1]) : null;
-        const ok = p!=null && !isNaN(p);
-        items.push({n:name, p:ok?p:null, pp:null, t:ok?Date.now():null});
-        added++;
-      });
-      if(!added) throw new Error('追加できる品名がありませんでした(すべて重複?)');
-      tx.update(ref, {items});
-    });
-    ta.value='';
-    await loadAll();
-    toast(`✅ ${added}件追加しました` + (skipped?`(重複${skipped}件はスキップ)`:''));
-  }catch(e){ console.error(e); toast('❌ '+(e.message||'一括登録に失敗しました')); }
-}
-async function delItem(kind, idx){
-  const sel = document.getElementById(kind==='souba'?'setCompanySel':'setClientSel');
-  const targetId = sel.value;
-  const target = S[kind].list.find(c=>c.id===targetId);
-  if(!target) return;
-  const it = target.items[idx];
-  if(!confirm(`「${it.n}」を削除しますか?`)) return;
-  try{
-    await db.runTransaction(async tx=>{
-      const ref = db.collection(COL[kind]).doc(targetId);
-      const doc = await tx.get(ref);
-      const items = (doc.data().items||[]).filter((_,i)=>i!==idx);
-      tx.update(ref, {items});
-    });
-    await loadAll(); toast('削除しました');
-  }catch(e){ console.error(e); toast('❌ 削除に失敗: '+(e.message||e)); }
-}
-
-/* ===== PWA ===== */
-let deferredPrompt=null;
-window.addEventListener('beforeinstallprompt', e=>{
-  e.preventDefault(); deferredPrompt=e;
-  document.getElementById('installBtn').style.display='block';
-});
-document.getElementById('installBtn').addEventListener('click', async ()=>{
-  if(!deferredPrompt) return;
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  deferredPrompt=null;
-  document.getElementById('installBtn').style.display='none';
-});
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
-
-loadAll();
-</script>
-</body>
-</html>
+  if(!keys.length){ box.innerHTML = '<div class="empty">まだ記録がありません。<br>「✏️入力」から単価を入れて保存すると、<br>ここに表ができていきます
