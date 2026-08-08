@@ -253,8 +253,8 @@
     </div>
     <div class="card">
       <h2>メンテナンス</h2>
-      <div class="note">「現在の単価」がおかしいときに押すと、履歴データから正しい最新単価を計算し直します。間違った履歴は、品名をタップ→履歴の🗑で削除できます(削除後も自動で再計算されます)</div>
-      <button class="addBtn" style="width:100%" onclick="repairCurrent()">🔧 現在単価を履歴から再計算</button>
+      <div class="note">表示がおかしいときに押してください。①履歴のない単価に履歴を作成(グラフが出ない対策) ②現在単価を履歴の最新日付から計算し直し、の両方を行います。間違った履歴は品名タップ→🗑で削除できます</div>
+      <button class="addBtn" style="width:100%" onclick="repairCurrent()">🔧 データを点検・修復する</button>
     </div>
   </div>
 
@@ -778,7 +778,7 @@ async function saveInput(){
   btn.disabled = false; btn.textContent = '保存';
 }
 
-/* ===== 履歴・グラフ(🗑削除つき) ===== */
+/* ===== 履歴・グラフ ===== */
 async function showHistory(kind, idx){
   const st = S[kind];
   const target = st.list.find(c=>c.id===st.currentId);
@@ -796,7 +796,7 @@ async function showHistory(kind, idx){
     const snap = await db.collection('tankaHistory')
       .where('kind','==',kind).where('target','==',target.name).where('item','==',item.n).get();
     const rows = snap.docs.map(d=>({docId:d.id, ...d.data()})).sort((a,b)=>b.ts-a.ts);
-    if(!rows.length){ document.getElementById('histList').innerHTML='<div class="empty">履歴はまだありません</div>'; return; }
+    if(!rows.length){ document.getElementById('histList').innerHTML='<div class="empty">履歴はまだありません。<br>設定タブの「🔧データを点検・修復する」を押すと<br>今の単価から履歴が作られます</div>'; return; }
     document.getElementById('histList').innerHTML = rows.slice(0,60).map(r=>{
       const dir = (r.oldPrice==null||r.newPrice===r.oldPrice) ? '' : (r.newPrice>r.oldPrice?'up':'down');
       const arrow = dir==='up'?'▲':(dir==='down'?'▼':'');
@@ -807,10 +807,8 @@ async function showHistory(kind, idx){
         <button class="histDel" onclick="delHist('${r.docId}', ${r.newPrice}, ${r.ts})">🗑</button>
       </div>`;
     }).join('');
-    if(rows.length>=2){
-      const asc = rows.slice(0,40).reverse();
-      drawChart(asc.map(r=>r.newPrice), fmtApply(asc[0].ts,freq), fmtApply(asc[asc.length-1].ts,freq));
-    }
+    const asc = rows.slice(0,40).reverse();
+    drawChart(asc.map(r=>r.newPrice), fmtApply(asc[0].ts,freq), fmtApply(asc[asc.length-1].ts,freq));
   }catch(e){ console.error(e); document.getElementById('histList').innerHTML='<div class="empty">履歴の取得に失敗しました</div>'; }
 }
 async function delHist(docId, price, ts){
@@ -860,21 +858,27 @@ function drawChart(vals, firstLabel, lastLabel){
   const W=cv.width, H=cv.height;
   const x=i=> padL + (W-padL-padR)*(vals.length===1?0.5:i/(vals.length-1));
   const y=v=> max===min ? (H-padB+padT)/2 : (H-padB) - (H-padT-padB)*((v-min)/(max-min));
-  const grad = ctx.createLinearGradient(0,padT,0,H-padB);
-  grad.addColorStop(0,'rgba(22,163,74,.30)');
-  grad.addColorStop(1,'rgba(22,163,74,.02)');
-  ctx.beginPath();
-  vals.forEach((v,i)=> i? ctx.lineTo(x(i),y(v)) : ctx.moveTo(x(i),y(v)));
-  ctx.lineTo(x(vals.length-1), H-padB); ctx.lineTo(x(0), H-padB); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-  ctx.strokeStyle='#16a34a'; ctx.lineWidth=4; ctx.beginPath();
-  vals.forEach((v,i)=> i? ctx.lineTo(x(i),y(v)) : ctx.moveTo(x(i),y(v)));
-  ctx.stroke();
+  if(vals.length>=2){
+    const grad = ctx.createLinearGradient(0,padT,0,H-padB);
+    grad.addColorStop(0,'rgba(22,163,74,.30)');
+    grad.addColorStop(1,'rgba(22,163,74,.02)');
+    ctx.beginPath();
+    vals.forEach((v,i)=> i? ctx.lineTo(x(i),y(v)) : ctx.moveTo(x(i),y(v)));
+    ctx.lineTo(x(vals.length-1), H-padB); ctx.lineTo(x(0), H-padB); ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.strokeStyle='#16a34a'; ctx.lineWidth=4; ctx.beginPath();
+    vals.forEach((v,i)=> i? ctx.lineTo(x(i),y(v)) : ctx.moveTo(x(i),y(v)));
+    ctx.stroke();
+  }
   ctx.fillStyle='#166534';
   vals.forEach((v,i)=>{ ctx.beginPath(); ctx.arc(x(i),y(v),5,0,7); ctx.fill(); });
   ctx.fillStyle='#374151'; ctx.font='bold 22px sans-serif';
-  ctx.fillText(`高 ${fmtNum(max)}`, padL, 24);
-  ctx.fillText(`安 ${fmtNum(min)}`, W/2, 24);
+  if(max!==min){
+    ctx.fillText(`高 ${fmtNum(max)}`, padL, 24);
+    ctx.fillText(`安 ${fmtNum(min)}`, W/2, 24);
+  } else {
+    ctx.fillText(`${fmtNum(max)}円`, padL, 24);
+  }
   ctx.fillStyle='#6b7f70'; ctx.font='19px sans-serif';
   ctx.fillText(firstLabel, padL, H-10);
   const lw = ctx.measureText(lastLabel).width;
@@ -1080,11 +1084,12 @@ async function removeLink(){
 }
 function closeLink(){ document.getElementById('linkOverlay').classList.remove('show'); linkEditing=null; }
 
-/* ===== メンテナンス ===== */
+/* ===== メンテナンス(履歴の穴埋め+現在単価の再計算) ===== */
 async function repairCurrent(){
-  if(!confirm('履歴データから「現在の単価」を計算し直します。\n(適用日がいちばん新しい記録が現在単価になります)\nよろしいですか?')) return;
-  toast('再計算中…少しお待ちください');
+  if(!confirm('データを点検・修復します。\n①履歴のない単価に履歴を作成\n②現在単価を履歴の最新日付から計算し直し\nよろしいですか?')) return;
+  toast('点検中…少しお待ちください');
   try{
+    let backfilled = 0;
     let fixed = 0;
     for(const kind of ['souba','client']){
       for(const c of S[kind].list){
@@ -1092,9 +1097,24 @@ async function repairCurrent(){
         const snap = await db.collection('tankaHistory')
           .where('kind','==',kind).where('target','==',c.name).get();
         const rows = snap.docs.map(d=>d.data());
-        if(!rows.length) continue;
         const byItem = {};
         rows.forEach(r=>{ (byItem[r.item]=byItem[r.item]||[]).push(r); });
+
+        // ① 履歴の穴埋め: 単価はあるのに履歴が1件もない品目
+        const backfillBatch = db.batch();
+        let bfCount = 0;
+        c.items.forEach(it=>{
+          if(it.p!=null && !(byItem[it.n]||[]).length){
+            const ts = it.t || Date.now();
+            const rec = {kind, target:c.name, item:it.n, oldPrice: it.pp??null, newPrice: it.p, ts};
+            backfillBatch.set(db.collection('tankaHistory').doc(), rec);
+            (byItem[it.n]=byItem[it.n]||[]).push(rec);
+            bfCount++;
+          }
+        });
+        if(bfCount){ await backfillBatch.commit(); backfilled += bfCount; }
+
+        // ② 現在単価を履歴の最新日付から再計算
         let changed = false;
         const items = c.items.map(it=>{
           const hs = byItem[it.n];
@@ -1111,8 +1131,11 @@ async function repairCurrent(){
       }
     }
     await loadAll();
-    toast(fixed ? `✅ ${fixed}品目の現在単価を直しました` : '✅ すべて正常でした(修正なし)');
-  }catch(e){ console.error(e); toast('❌ 再計算に失敗: '+(e.message||e)); }
+    const parts = [];
+    if(backfilled) parts.push(`履歴を${backfilled}件作成`);
+    if(fixed) parts.push(`${fixed}品目の現在単価を修正`);
+    toast(parts.length ? `✅ ${parts.join('・')}しました` : '✅ すべて正常でした(修正なし)');
+  }catch(e){ console.error(e); toast('❌ 点検に失敗: '+(e.message||e)); }
 }
 
 /* ===== 並び順変更 ===== */
@@ -1244,14 +1267,17 @@ async function addItem(kind){
   const p = priceInp.value===''? null : parseFloat(priceInp.value);
   const ok = p!=null && !isNaN(p);
   try{
+    const targetName = S[kind].list.find(c=>c.id===targetId)?.name || '';
     await db.runTransaction(async tx=>{
       const ref = db.collection(COL[kind]).doc(targetId);
       const doc = await tx.get(ref);
       if(!doc.exists) throw new Error('登録先が見つかりません');
       const items = [...(doc.data().items||[])];
       if(items.find(it=>it.n===name)) throw new Error('同じ品名がすでにあります');
-      items.push({n:name, p:ok?p:null, pp:null, t:ok?Date.now():null});
+      const ts = Date.now();
+      items.push({n:name, p:ok?p:null, pp:null, t:ok?ts:null});
       tx.update(ref, {items});
+      if(ok) tx.set(db.collection('tankaHistory').doc(), {kind, target:targetName, item:name, oldPrice:null, newPrice:p, ts});
     });
     nameInp.value=''; priceInp.value='';
     await loadAll(); toast(`「${name}」を追加しました`);
@@ -1266,12 +1292,15 @@ async function bulkAdd(kind){
   if(!lines.length){ toast('登録する品名を貼り付けてください'); return; }
   try{
     let added=0, skipped=0;
+    const targetName = S[kind].list.find(c=>c.id===targetId)?.name || '';
     await db.runTransaction(async tx=>{
       const ref = db.collection(COL[kind]).doc(targetId);
       const doc = await tx.get(ref);
       if(!doc.exists) throw new Error('登録先が見つかりません');
       const items = [...(doc.data().items||[])];
+      const histRecs = [];
       added=0; skipped=0;
+      const ts = Date.now();
       lines.forEach(line=>{
         const parts = line.split(/[,、\t]/).map(s=>s.trim());
         const name = parts[0];
@@ -1279,11 +1308,13 @@ async function bulkAdd(kind){
         if(items.find(it=>it.n===name)){ skipped++; return; }
         const p = parts[1]!==undefined && parts[1]!=='' ? parseFloat(parts[1]) : null;
         const ok = p!=null && !isNaN(p);
-        items.push({n:name, p:ok?p:null, pp:null, t:ok?Date.now():null});
+        items.push({n:name, p:ok?p:null, pp:null, t:ok?ts:null});
+        if(ok) histRecs.push({kind, target:targetName, item:name, oldPrice:null, newPrice:p, ts});
         added++;
       });
       if(!added) throw new Error('追加できる品名がありませんでした(すべて重複?)');
       tx.update(ref, {items});
+      histRecs.forEach(h=> tx.set(db.collection('tankaHistory').doc(), h));
     });
     ta.value='';
     await loadAll();
