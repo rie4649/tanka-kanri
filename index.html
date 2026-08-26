@@ -361,6 +361,7 @@
     <div class="field" id="linkBaseRow" style="display:none"><label>📅 基準日(この日の相場の値で計算します)</label><input type="date" id="linkBaseDate" onchange="updateLinkPreview()"></div>
     <div class="note" id="linkPreview"></div>
     <button class="primaryBtn" onclick="saveLink()">連動を設定</button>
+    <button class="primaryBtn" style="background:#0e7490;" onclick="saveLinkBackfill()">📥 保存して過去履歴もまとめて反映</button>
     <button class="dangerBtn" id="linkRemoveBtn" onclick="removeLink()">連動を解除</button>
     <button class="closeBtn" onclick="closeLink()">閉じる</button>
   </div>
@@ -1425,6 +1426,68 @@ async function removeLink(){
   }catch(e){ console.error(e); toast('❌ 解除に失敗: '+(e.message||e)); }
 }
 function closeLink(){ document.getElementById('linkOverlay').classList.remove('show'); linkEditing=null; }
+
+/* ===== 連動元の過去履歴をまとめて反映(履歴の作り直し) ===== */
+async function saveLinkBackfill(){
+  if(!linkEditing) return;
+  if(document.getElementById('linkManual').checked){ toast('「基準日方式」では過去履歴の反映は使えません(チェックを外してください)'); return; }
+  const le = {...linkEditing};
+  const cid = document.getElementById('linkCompanySel').value;
+  const itemName = document.getElementById('linkItemSel').value;
+  await saveLink();
+  const lkind = le.kind || 'client';
+  const cl = S[lkind].list.find(c=>c.id===le.targetId);
+  const it = cl?.items?.[le.idx];
+  if(!it || !it.link || it.link.cid!==cid || it.link.item!==itemName) return; // 連動の保存に失敗していたら何もしない
+  await backfillLinked(lkind, le.targetId, le.idx);
+}
+async function backfillLinked(lkind, targetId, idx){
+  const cl = S[lkind].list.find(c=>c.id===targetId);
+  const it = cl?.items?.[idx];
+  if(!cl || !it || !it.link) return;
+  const link = it.link;
+  const lfreq = freqOf(lkind, cl);
+  const srcComp = S.souba.list.find(c=>c.id===link.cid);
+  if(!srcComp){ toast('連動元の会社が見つかりません'); return; }
+  try{
+    const snapSrc = await db.collection('tankaHistory')
+      .where('kind','==','souba').where('target','==',srcComp.name).where('item','==',link.item).get();
+    const src = snapSrc.docs.map(d=>d.data());
+    if(!src.length){ toast('連動元にはまだ記録がないため、反映できる履歴がありません'); return; }
+    // 連動先の区切り(都度=日ごと/月一=月ごと/前半後半)ごとに「一番新しい日付の相場」を採用
+    const byKey = {};
+    src.forEach(r=>{
+      const lts = tsForFreq(r.ts, lfreq);
+      const k = dateKeyOf(lts, lfreq);
+      if(!byKey[k] || r.ts > byKey[k].srcTs) byKey[k] = {srcTs:r.ts, lts, v:r.newPrice};
+    });
+    const desired = Object.values(byKey).sort((a,b)=>a.lts-b.lts);
+    const snapOld = await db.collection('tankaHistory')
+      .where('kind','==',lkind).where('target','==',cl.name).where('item','==',it.n).get();
+    if(!confirm(`「${it.n}」の履歴を、連動元「${srcComp.name}/${link.item}」の記録から作り直します。\n\n・作成される記録: ${desired.length}件\n・今ある「${it.n}」の記録 ${snapOld.size}件はすべて削除して置き換えます\n\nよろしいですか?`)) return;
+    toast('履歴を作成中…');
+    const ops = [];
+    snapOld.docs.forEach(d=> ops.push({type:'del', ref:d.ref}));
+    let prev = null;
+    desired.forEach(dv=>{
+      const np = calcLinked(dv.v, link);
+      ops.push({type:'set', data:{kind:lkind, target:cl.name, item:it.n, oldPrice:prev, newPrice:np, ts:dv.lts, auto:true}});
+      prev = np;
+    });
+    for(let i=0; i<ops.length; i+=400){
+      const batch = db.batch();
+      ops.slice(i, i+400).forEach(op=>{
+        if(op.type==='del') batch.delete(op.ref);
+        else batch.set(db.collection('tankaHistory').doc(), op.data);
+      });
+      await batch.commit();
+    }
+    await recalcItem(lkind, cl.id, it.n);
+    S.tableCache = {};
+    await loadAll();
+    toast(`📥「${it.n}」に${desired.length}件の履歴を作成しました`);
+  }catch(e){ console.error(e); toast('❌ 反映に失敗: '+(e.message||e)); }
+}
 
 /* ===== メンテナンス(履歴の穴埋め+現在単価の再計算) ===== */
 async function repairCurrent(){
