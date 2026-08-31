@@ -647,7 +647,7 @@ async function loadAll(){
     console.error(e);
     S.disposal.list = [];
     const t = document.getElementById('toast');
-    t.textContent = '⚠️ 処分先データを読めません: '+(e.code||e.message||e)+' (Firestoreルールに tankaDisposalList の許可が必要かもしれません)';
+    t.textContent = '⚠️ 処分先データを読めません: '+(e.code||e.message||e);
     t.className='show err'; setTimeout(()=>{ t.className=''; }, 10000);
   }
   S.tableCache = {};
@@ -2047,7 +2047,8 @@ document.getElementById('installBtn').addEventListener('click', async ()=>{
   deferredPrompt=null;
   document.getElementById('installBtn').style.display='none';
 });
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+// sw.js(オフライン用)が無くてもエラーを出さない
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 loadAll();
 </script>
