@@ -138,7 +138,12 @@
 
   .inDateRow { display:flex; align-items:center; gap:10px; background:#e8f2ea; border-radius:10px; padding:10px 12px; margin-bottom:10px; position:sticky; top:0; z-index:5; }
   .inDateRow label { font-size:14px; font-weight:bold; color:#166534; white-space:nowrap; }
-  .inDateRow input { flex:1; padding:9px; font-size:16px; border:1.5px solid #16a34a; border-radius:8px; background:#fff; font-weight:bold; min-width:0; }
+  .inDateRow input, .inDateRow select { flex:1; padding:9px; font-size:16px; border:1.5px solid #16a34a; border-radius:8px; background:#fff; font-weight:bold; min-width:0; }
+  .inDateRow.blank { background:#fff7ed; }
+  .inDateRow.blank select { border-color:#fdba74; font-size:14px; }
+  .inRow input.none { background:#f3f4f6; color:#6b7280; font-weight:bold; text-align:center; }
+  .noneBtn { flex:0 0 auto; height:44px; padding:0 10px; border:1.5px solid #cfdcd2; background:#f0f5f1; color:#3c5543; border-radius:8px; font-size:13px; font-weight:bold; }
+  .noneBtn.act { background:#6b7280; border-color:#6b7280; color:#fff; }
   .halfBtn { flex:0 0 auto; padding:9px 13px; border-radius:8px; border:1.5px solid #cfdcd2; background:#fff; font-size:14px; font-weight:bold; color:#3c5543; }
   .halfBtn.act { background:#166534; border-color:#166534; color:#fff; }
   .inRow { display:flex; align-items:center; gap:8px; padding:8px 2px; border-bottom:1px solid #edf3ee; }
@@ -423,8 +428,12 @@
     <div class="inDateRow" id="inBaseRow" style="display:none;background:#eef6ff;border-radius:8px;padding:8px;"><label>🔗 相場の基準日</label><input type="date" id="inBaseDate"><button class="miniBtn" onclick="calcFromBaseDate()">計算する</button></div>
     <div class="note" id="inBaseNote" style="display:none">🔗の付いた品目を、選んだ日の相場の値から自動で計算して入れます(計算後に手直しもできます)</div>
     <input class="searchBox" id="inSearch" style="width:100%;margin-bottom:8px" placeholder="🔍 品名で絞り込み" oninput="renderInList()">
-    <div class="note">変わった品目だけ数字を入れてください。空欄のままの品目は記録されません(前の単価がそのまま残ります)。<br>単価が変わらなかった品目は「＝」を押すと前回と同じ単価が入り、<b>「変動なし」としてこの日付で記録</b>されます。</div>
-    <button class="miniBtn" style="width:100%;margin-bottom:8px;padding:9px 8px;" onclick="setSameAll()">＝ 空欄すべてに「変動なし(前回と同じ)」を入れる</button>
+    <div class="inDateRow blank" style="position:static;"><label>空欄の品目</label><select id="inBlankMode">
+      <option value="same">変動なし(前回と同じ単価でこの日付に記録)</option>
+      <option value="skip">記録しない(前の単価をそのまま残す)</option>
+      <option value="none">なし(単価なし)として記録</option>
+    </select></div>
+    <div class="note">変わった品目だけ数字を入れてください。空欄のままの品目は上の設定どおりに扱われます(初期設定は<b>変動なし</b>)。<br>単価が付かなくなった品目は「なし」ボタンを押すと、その品目だけ<b>単価なし</b>としてこの日付で記録されます。</div>
     <div id="inList"></div>
     <button class="primaryBtn" id="inSaveBtn" onclick="saveInput()">保存</button>
     <button class="closeBtn" onclick="closeInput()">キャンセル</button>
@@ -437,7 +446,7 @@
     <h3>✏️ 記録の訂正</h3>
     <div class="note" id="histEditInfo"></div>
     <div style="margin:12px 0;">
-      <label style="font-size:13px;font-weight:bold;color:#166534;display:block;margin-bottom:4px;">単価(円)</label>
+      <label style="font-size:13px;font-weight:bold;color:#166534;display:block;margin-bottom:4px;">単価(円)　※空欄にすると「なし」</label>
       <input type="number" inputmode="decimal" step="any" id="histEditPrice" style="width:100%;font-size:18px;padding:10px;border:1.5px solid #b9ccbc;border-radius:8px;">
     </div>
     <div style="margin:12px 0;">
@@ -836,10 +845,10 @@ async function renderTable(kind, target, box){
     keys.forEach((dk,di)=>{
       const cell = map[key]?.[dk];
       let sub = '';
-      if(cell){
+      if(cell && cell.price!=null){
         for(let j=di+1; j<keys.length; j++){
           const prev = map[key]?.[keys[j]];
-          if(prev){
+          if(prev && prev.price!=null){
             const d = round2(cell.price - prev.price);
             if(d>0) sub = `<span class="cup">▲+${fmtNum(d)}</span>`;
             else if(d<0) sub = `<span class="cdown">▼${fmtNum(d)}</span>`;
@@ -847,7 +856,7 @@ async function renderTable(kind, target, box){
           }
         }
       }
-      tds += `<td class="${di===0?'latest':''}">${cell?fmtNum(cell.price):''}${sub}</td>`;
+      tds += `<td class="${di===0?'latest':''}">${cell?(cell.price==null?'なし':fmtNum(cell.price)):''}${sub}</td>`;
     });
     const subName = [it.e, it.u?`円/${it.u}`:'', it.c==='trans'?'🚚':''].filter(Boolean).join(' ');
     body += `<tr><td class="nm">${esc(it.n)}${subName?`<span class="em">${esc(subName)}</span>`:''}</td>${tds}</tr>`;
@@ -885,7 +894,7 @@ function renderList(kind){
         ${linked?`<span class="sub lk">${linkTxt(it.link)}</span>`:''}
       </button>
       <div class="pcol">
-        ${it.p!=null?`<div class="pv">${fmtNum(it.p)}<span class="yen">円${esc(unitTxt(it))}</span></div>`:`<div class="pv unset">未設定${it.u?`(円/${esc(it.u)})`:''}</div>`}
+        ${it.p!=null?`<div class="pv">${fmtNum(it.p)}<span class="yen">円${esc(unitTxt(it))}</span></div>`:`<div class="pv unset">${it.none?'なし':'未設定'}${it.u?`(円/${esc(it.u)})`:''}</div>`}
         ${df?`<span class="diffBadge ${df.cls}">${df.txt}</span>`:(it.p!=null&&it.pp!=null?`<span class="diffBadge flat">±0</span>`:'')}
       </div>
     </div>`;
@@ -910,6 +919,7 @@ function openInput(kind){
   document.getElementById('inMonthH').value = monthNowStr();
   setHalf(new Date().getDate()<=15 ? 'A' : 'B');
   document.getElementById('inSearch').value = '';
+  document.getElementById('inBlankMode').value = 'same';
   IN.existing = {};
   const hasManualLink = (target.items||[]).some(it=>it.link && it.link.mode==='manual');
   document.getElementById('inBaseRow').style.display = hasManualLink ? 'flex' : 'none';
@@ -935,7 +945,7 @@ async function getBasePrice(cid, itemName, dateStr, srcKind){
   const baseTs = new Date(dateStr + 'T23:59:59').getTime();
   try{
     const {map} = await buildTable(srcKind, srcComp);
-    const entries = Object.values(map[itemName]||{}).filter(e=>e.ts<=baseTs).sort((a,b)=>b.ts-a.ts);
+    const entries = Object.values(map[itemName]||{}).filter(e=>e.price!=null && e.ts<=baseTs).sort((a,b)=>b.ts-a.ts);
     return entries.length ? entries[0] : null;
   }catch(e){ console.error(e); return null; }
 }
@@ -957,7 +967,7 @@ async function calcFromBaseDate(){
     if(!srcComp){ miss.push(it.n); continue; }
     try{
       const {map} = await buildTable(sk, srcComp);
-      const entries = Object.values(map[it.link.item]||{}).filter(e=>e.ts<=baseTs).sort((a,b)=>b.ts-a.ts);
+      const entries = Object.values(map[it.link.item]||{}).filter(e=>e.price!=null && e.ts<=baseTs).sort((a,b)=>b.ts-a.ts);
       if(!entries.length){ miss.push(it.n); continue; }
       IN.values[idx] = String(calcLinked(entries[0].price, it.link));
       done++;
@@ -1005,7 +1015,7 @@ async function loadExistingForDate(){
   // その日の記録済みの値を入力欄にプリセット(手入力済みの欄は上書きしない)
   (target.items||[]).forEach((it,idx)=>{
     const e = IN.existing[hk(it)];
-    if(e && (IN.values[idx]===undefined || IN.values[idx]==='')) IN.values[idx] = String(e.price);
+    if(e && (IN.values[idx]===undefined || IN.values[idx]==='')) IN.values[idx] = e.price==null ? 'none' : String(e.price);
   });
   document.getElementById('inExistNote').style.display = Object.keys(IN.existing).length ? 'block' : 'none';
   renderInList();
@@ -1025,39 +1035,25 @@ function renderInList(){
     }
     // 固定品目も入力欄は出す(単価の設定・修正ができるように)。空欄のままなら何も起きない
     const raw = IN.values.hasOwnProperty(idx) ? IN.values[idx] : '';
-    const ph = it.p!=null ? `前回 ${fmtNum(it.p)}` : '未入力';
+    const isNone = raw==='none';
+    const ph = it.p!=null ? `前回 ${fmtNum(it.p)}` : (it.none ? '前回 なし' : '未入力');
     const manualTag = ((it.link && it.link.mode==='manual') ? '🔗' : '') + (it.fixed ? '📌' : '');
+    const prevTxt = it.p!=null ? `前回 ${fmtNum(it.p)}円${esc(unitTxt(it))}(${fmtApply(it.t, freq)})` : (it.none ? `前回 なし(${fmtApply(it.t, freq)})` : 'まだ記録なし');
     html += `<div class="inRow">
-      <div class="n">${manualTag}${esc(it.n)}${emitTag(it)}${costTag(it)}<small>${it.p!=null?`前回 ${fmtNum(it.p)}円${esc(unitTxt(it))}(${fmtApply(it.t, freq)})`:'まだ記録なし'}</small></div>
-      ${it.p!=null?`<button class="sameBtn" title="前回と同じ(変動なし)" onclick="setSameOne(${idx})">＝</button>`:''}
-      <input type="number" inputmode="decimal" step="any" value="${raw}" placeholder="${ph}" class="${raw!==''?'chg':''}" oninput="IN.values[${idx}]=this.value; this.classList.toggle('chg', this.value!=='')">
+      <div class="n">${manualTag}${esc(it.n)}${emitTag(it)}${costTag(it)}<small>${prevTxt}</small></div>
+      <button class="noneBtn ${isNone?'act':''}" title="単価なしとして記録" onclick="toggleNone(${idx})">なし</button>
+      ${isNone
+        ? `<input type="text" value="なし" readonly class="none" onclick="toggleNone(${idx})">`
+        : `<input type="number" inputmode="decimal" step="any" value="${raw}" placeholder="${ph}" class="${raw!==''?'chg':''}" oninput="IN.values[${idx}]=this.value; this.classList.toggle('chg', this.value!=='')">`}
       ${unitLbl}
     </div>`;
   });
   document.getElementById('inList').innerHTML = html || '<div class="empty">該当する品名がありません</div>';
 }
-function setSameOne(idx){
-  const target = S[IN.kind]?.list.find(c=>c.id===S[IN.kind].currentId);
-  const it = target?.items?.[idx];
-  if(!it || it.p==null) return;
-  IN.values[idx] = String(it.p);
+// 「なし」ボタン: その品目をこの日付で「単価なし」として記録する(もう一度押すと解除)
+function toggleNone(idx){
+  IN.values[idx] = (IN.values[idx]==='none') ? '' : 'none';
   renderInList();
-}
-function setSameAll(){
-  const target = S[IN.kind]?.list.find(c=>c.id===S[IN.kind].currentId);
-  if(!target) return;
-  let n = 0;
-  (target.items||[]).forEach((it,idx)=>{
-    if(it.link && it.link.mode!=='manual') return; // 自動連動は対象外
-    if(it.fixed) return;                            // 📌固定は対象外
-    if(it.p==null) return;                          // まだ記録がない品目は対象外
-    const raw = IN.values.hasOwnProperty(idx) ? IN.values[idx] : '';
-    if(raw!=='') return;                            // すでに入力済みは触らない
-    IN.values[idx] = String(it.p);
-    n++;
-  });
-  renderInList();
-  toast(n ? `＝ ${n}品目に「前回と同じ単価」を入れました` : '入れられる空欄がありません');
 }
 function closeInput(){ document.getElementById('inputOverlay').classList.remove('show'); IN.kind=null; IN.values={}; }
 
@@ -1091,18 +1087,28 @@ async function saveInput(){
     ts = tsFromDateStr(dv);
   }
 
+  const blankMode = document.getElementById('inBlankMode').value; // same / skip / none
   const records = [];
+  let cntSame = 0, cntNone = 0;
   (target.items||[]).forEach((it,idx)=>{
     if(it.link && it.link.mode!=='manual') return;
     const raw = IN.values.hasOwnProperty(idx) ? IN.values[idx] : '';
-    if(raw==='') return;
-    const v = parseFloat(raw);
-    if(isNaN(v)) return;
+    let v;
+    if(raw==='none'){ v = null; cntNone++; }
+    else if(raw===''){
+      if(it.fixed) return;                                   // 📌固定は触らない
+      if(blankMode==='skip') return;                         // 記録しない
+      if(blankMode==='none'){ v = null; cntNone++; }         // なしとして記録
+      else { if(it.p==null) return; v = it.p; cntSame++; }   // 変動なし(前回と同じ)
+    } else {
+      v = parseFloat(raw);
+      if(isNaN(v)) return;
+    }
     const ex = IN.existing && IN.existing[hk(it)];
-    if(ex && ex.price === v) return; // その日の記録のままなら何もしない
+    if(ex && ex.price === v){ if(raw==='') { if(v==null) cntNone--; else cntSame--; } return; } // その日の記録のままなら何もしない
     records.push({idx, v});
   });
-  if(!records.length){ toast('入力された単価がありません'); return; }
+  if(!records.length){ toast('記録する単価がありません'); return; }
 
   const btn = document.getElementById('inSaveBtn');
   btn.disabled = true; btn.textContent = '保存中…';
@@ -1112,7 +1118,7 @@ async function saveInput(){
       if(!rec) return it;
       if(ts >= (it.t||0)){
         if(rec.v === it.p) return {...it, t:ts};
-        return {...it, pp:(it.p!=null?it.p:it.pp??null), p:rec.v, t:ts};
+        return {...it, pp:(it.p!=null?it.p:it.pp??null), p:rec.v, t:ts, none: rec.v==null};
       }
       return it;
     });
@@ -1123,6 +1129,7 @@ async function saveInput(){
       records.forEach(r=>{
         const it = target.items[r.idx];
         // 過去日付の入力も連動先に反映する(現在単価と同じ値でも、その日付の記録として必要)
+        if(r.v==null) return; // 「なし」は連動先に流さない
         if(ts < (it.t||0) || r.v !== it.p) changedMap[hk(it)] = r.v;
       });
       if(Object.keys(changedMap).length){
@@ -1176,7 +1183,7 @@ async function saveInput(){
           }
           const dkSrc = dateKeyOf(ts, freq);
           const cands = srcHistCache[h._src]
-            .filter(r=> dateKeyOf(r.ts, u.lfreq)===dk && dateKeyOf(r.ts, freq)!==dkSrc)
+            .filter(r=> r.newPrice!=null && dateKeyOf(r.ts, u.lfreq)===dk && dateKeyOf(r.ts, freq)!==dkSrc)
             .concat([{ts, newPrice: h._v}]);
           cands.sort((a,b)=> b.ts - a.ts);
           useV = cands[0].newPrice;
@@ -1244,7 +1251,8 @@ async function saveInput(){
     await loadAll();
     closeInput();
     const linkedCount = linkedUpdates.reduce((s,u)=>s+u.touched,0);
-    toast(`✅ ${fmtApply(ts, freq)}で${records.length}件記録しました${linkedCount?`(連動${linkedCount}件も更新)`:''}${pastDated?` ※${pastDated}件は過去日付のため現在単価は最新の記録のまま`:''}`);
+    const parts = []; if(cntSame>0) parts.push(`変動なし${cntSame}`); if(cntNone>0) parts.push(`なし${cntNone}`); if(linkedCount) parts.push(`連動${linkedCount}件も更新`);
+    toast(`✅ ${fmtApply(ts, freq)}で${records.length}件記録しました${parts.length?`(${parts.join('・')})`:''}${pastDated?` ※${pastDated}件は過去日付のため現在単価は最新の記録のまま`:''}`);
   }catch(e){
     console.error(e); toast('❌ 保存に失敗: '+(e.message||e));
   }
@@ -1261,7 +1269,7 @@ async function showHistory(kind, idx){
   const item = target.items[idx];
   document.getElementById('histTitle').textContent = `${target.name} / ${hk(item)}${item.u?`(円/${item.u})`:''}`;
   const df = diffOf(item);
-  document.getElementById('histSub').innerHTML = item.p!=null ? `現在 <span style="font-size:20px">${fmtNum(item.p)}円${esc(unitTxt(item))}</span> ${df?`<span class="${df.cls}">${df.txt}</span>`:''}` : '';
+  document.getElementById('histSub').innerHTML = item.p!=null ? `現在 <span style="font-size:20px">${fmtNum(item.p)}円${esc(unitTxt(item))}</span> ${df?`<span class="${df.cls}">${df.txt}</span>`:''}` : (item.none ? '現在 <span style="font-size:20px">なし</span>' : '');
   document.getElementById('histList').innerHTML = '<div class="empty">読み込み中…</div>';
   document.getElementById('histChart').style.display='none';
   document.getElementById('histOverlay').classList.add('show');
@@ -1271,18 +1279,20 @@ async function showHistory(kind, idx){
     const rows = snap.docs.map(d=>({docId:d.id, ...d.data()})).sort((a,b)=>b.ts-a.ts);
     if(!rows.length){ document.getElementById('histList').innerHTML='<div class="empty">履歴はまだありません。<br>設定タブの「🔧データを点検・修復する」を押すと<br>今の単価から履歴が作られます</div>'; return; }
     document.getElementById('histList').innerHTML = rows.slice(0,60).map(r=>{
-      const dir = (r.oldPrice==null||r.newPrice===r.oldPrice) ? '' : (r.newPrice>r.oldPrice?'up':'down');
+      const noCmp = r.newPrice==null || r.oldPrice==null || r.newPrice===r.oldPrice;
+      const dir = noCmp ? '' : (r.newPrice>r.oldPrice?'up':'down');
       const arrow = dir==='up'?'▲':(dir==='down'?'▼':'');
-      const d = (r.oldPrice==null||r.newPrice===r.oldPrice) ? '' : ` (${r.newPrice>r.oldPrice?'+':''}${fmtNum(round2(r.newPrice-r.oldPrice))})`;
+      const d = noCmp ? '' : ` (${r.newPrice>r.oldPrice?'+':''}${fmtNum(round2(r.newPrice-r.oldPrice))})`;
+      const val = r.newPrice==null ? 'なし' : `${fmtNum(r.newPrice)}円`;
       return `<div class="histRow">
         <span class="d">${fmtApply(r.ts, freq)}</span>
-        <span class="hv">${r.auto?'<span class="autoTag">🔗自動</span>':''}<span class="${dir}">${fmtNum(r.newPrice)}円 ${arrow}${d}</span></span>
-        <button class="histDel" style="color:#075985;" onclick="editHist('${r.docId}', ${r.newPrice}, ${r.ts})">✏️</button>
-        <button class="histDel" onclick="delHist('${r.docId}', ${r.newPrice}, ${r.ts})">🗑</button>
+        <span class="hv">${r.auto?'<span class="autoTag">🔗自動</span>':''}<span class="${dir}">${val} ${arrow}${d}</span></span>
+        <button class="histDel" style="color:#075985;" onclick="editHist('${r.docId}', ${r.newPrice==null?'null':r.newPrice}, ${r.ts})">✏️</button>
+        <button class="histDel" onclick="delHist('${r.docId}', ${r.newPrice==null?'null':r.newPrice}, ${r.ts})">🗑</button>
       </div>`;
     }).join('');
-    const asc = rows.slice(0,40).reverse();
-    drawChart(asc.map(r=>r.newPrice), fmtApply(asc[0].ts,freq), fmtApply(asc[asc.length-1].ts,freq));
+    const asc = rows.filter(r=>r.newPrice!=null).slice(0,40).reverse();
+    if(asc.length) drawChart(asc.map(r=>r.newPrice), fmtApply(asc[0].ts,freq), fmtApply(asc[asc.length-1].ts,freq));
   }catch(e){ console.error(e); document.getElementById('histList').innerHTML='<div class="empty">履歴の取得に失敗しました</div>'; }
 }
 let HISTEDIT = {docId:null};
@@ -1292,7 +1302,7 @@ function editHist(docId, price, ts){
   const target = S[kind].list.find(c=>c.id===S[kind].currentId);
   const item = target ? target.items[idx] : null;
   document.getElementById('histEditInfo').textContent = `${target?target.name:''} / ${item?hk(item):''} の記録を直します。単価・適用日の直したいほうだけ変えてください。`;
-  document.getElementById('histEditPrice').value = price;
+  document.getElementById('histEditPrice').value = (price==null||price==='null') ? '' : price;
   const d = new Date(ts);
   document.getElementById('histEditDate').value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   document.getElementById('histEditOverlay').classList.add('show');
@@ -1304,8 +1314,9 @@ async function saveHistEdit(){
   const target = S[kind].list.find(c=>c.id===S[kind].currentId);
   if(!target) return;
   const item = target.items[idx];
-  const np = parseFloat(document.getElementById('histEditPrice').value);
-  if(isNaN(np)){ toast('単価に数字を入力してください'); return; }
+  const rawP = document.getElementById('histEditPrice').value.trim();
+  const np = rawP==='' ? null : parseFloat(rawP);
+  if(np!==null && isNaN(np)){ toast('単価に数字を入力してください(空欄=なし)'); return; }
   const dv = document.getElementById('histEditDate').value;
   if(!dv){ toast('適用日を選んでください'); return; }
   const nts = new Date(dv + 'T12:00:00').getTime();
@@ -1324,7 +1335,7 @@ async function delHist(docId, price, ts){
   const target = S[kind].list.find(c=>c.id===S[kind].currentId);
   if(!target) return;
   const item = target.items[idx];
-  if(!confirm(`この記録を削除しますか?\n${fmtDate(ts)}: ${fmtNum(price)}円\n(削除すると現在の単価も自動で計算し直されます)`)) return;
+  if(!confirm(`この記録を削除しますか?\n${fmtDate(ts)}: ${price==null?'なし':fmtNum(price)+'円'}\n(削除すると現在の単価も自動で計算し直されます)`)) return;
   try{
     await db.collection('tankaHistory').doc(docId).delete();
     await recalcItem(kind, target.id, hk(item));
@@ -1352,7 +1363,7 @@ async function recalcItem(kind, targetId, itemKey){
       const latest = rows[0];
       let prevVal = null;
       for(let j=1;j<rows.length;j++){ if(rows[j].newPrice !== latest.newPrice){ prevVal = rows[j].newPrice; break; } }
-      items[i] = {...items[i], p:latest.newPrice, t:latest.ts, pp:prevVal};
+      items[i] = {...items[i], p:latest.newPrice, t:latest.ts, pp:prevVal, none: latest.newPrice==null};
     }
     tx.update(ref, {items});
   });
@@ -1423,7 +1434,7 @@ async function exportHistoryCSV(){
       rows.push([
         fmtDate(r.ts),
         KIND_LABEL[r.kind]||r.kind,
-        r.target, r.name||r.item, r.emitter||'', r.newPrice,
+        r.target, r.name||r.item, r.emitter||'', r.newPrice==null?'なし':r.newPrice,
         (r.oldPrice==null||r.newPrice===r.oldPrice)?'':round2(r.newPrice-r.oldPrice),
         r.auto?'○':''
       ]);
@@ -1438,7 +1449,7 @@ function exportCurrentCSV(){
     S[kind].list.forEach(c=>{
       const freq = freqOf(kind, c);
       (c.items||[]).forEach(it=>{
-        rows.push([KIND_LABEL[kind], c.name, it.n + (it.e?`【${it.e}】`:''), it.u||'', it.c?COST_LABEL[it.c].replace('🚚 ',''):'', it.pp??'', it.p??'', (it.p!=null&&it.pp!=null)?round2(it.p-it.pp):'', it.t?fmtApply(it.t,freq):'', it.link?linkTxtPlain(it.link):'']);
+        rows.push([KIND_LABEL[kind], c.name, it.n + (it.e?`【${it.e}】`:''), it.u||'', it.c?COST_LABEL[it.c].replace('🚚 ',''):'', it.pp??'', it.p??(it.none?'なし':''), (it.p!=null&&it.pp!=null)?round2(it.p-it.pp):'', it.t?fmtApply(it.t,freq):'', it.link?linkTxtPlain(it.link):'']);
       });
     });
   });
@@ -1464,7 +1475,7 @@ async function printView(kind){
     const body = items.map(it=>{
       const tds = keys.map(dk=>{
         const cell = map[hk(it)]?.[dk];
-        return `<td class="num">${cell?fmtNum(cell.price):''}</td>`;
+        return `<td class="num">${cell?(cell.price==null?'なし':fmtNum(cell.price)):''}</td>`;
       }).join('');
       return `<tr><td>${nameOf(it)}</td>${withUnit?`<td>${esc(it.u||'')}</td>`:''}${tds}</tr>`;
     }).join('');
@@ -1485,7 +1496,7 @@ async function printView(kind){
       <td>${nameOf(it)}${it.link?' 🔗':''}${it.fixed?' 📌':''}</td>
       ${withUnit?`<td>${esc(it.u||'')}</td>`:''}
       <td class="num">${it.pp!=null?fmtNum(it.pp):'ー'}</td>
-      <td class="num"><b>${it.p!=null?fmtNum(it.p):'ー'}</b></td>
+      <td class="num"><b>${it.p!=null?fmtNum(it.p):(it.none?'なし':'ー')}</b></td>
       <td class="num">${df?df.txt:'ー'}</td>
       <td>${it.t?fmtApply(it.t,freq):'ー'}</td>
     </tr>`;
@@ -1681,7 +1692,7 @@ async function backfillLinked(lkind, targetId, idx){
   try{
     const snapSrc = await db.collection('tankaHistory')
       .where('kind','==',sk).where('target','==',srcComp.name).where('item','==',link.item).get();
-    const src = snapSrc.docs.map(d=>d.data());
+    const src = snapSrc.docs.map(d=>d.data()).filter(r=>r.newPrice!=null);
     if(!src.length){ toast('連動元にはまだ記録がないため、反映できる履歴がありません'); return; }
     const byKey = {};
     src.forEach(r=>{
@@ -1756,7 +1767,7 @@ async function repairCurrent(){
           let prevVal = null;
           for(let i=1;i<hs.length;i++){ if(hs[i].newPrice !== latest.newPrice){ prevVal = hs[i].newPrice; break; } }
           const np=latest.newPrice, nt=latest.ts, npp=(prevVal!=null?prevVal:(it.pp??null));
-          if(np!==it.p || nt!==it.t || npp!==it.pp){ changed=true; fixed++; return {...it, p:np, t:nt, pp:npp}; }
+          if(np!==it.p || nt!==it.t || npp!==it.pp){ changed=true; fixed++; return {...it, p:np, t:nt, pp:npp, none: np==null}; }
           return it;
         });
         if(changed) await db.collection(COL[kind]).doc(c.id).update({items});
