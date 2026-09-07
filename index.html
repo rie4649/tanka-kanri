@@ -32,6 +32,10 @@
   #pwBtn { width:100%; padding:14px; font-size:16px; font-weight:bold; border:none; border-radius:12px;
     background:linear-gradient(135deg,#facc15,#eab308); color:#14532d; box-shadow:0 4px 14px rgba(234,179,8,.4); }
   #pwBtn:disabled { opacity:.4; box-shadow:none; }
+  #lockInstallBtn { display:none; width:100%; margin-top:12px; padding:12px; font-size:14px; font-weight:bold; border-radius:12px;
+    background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.35); color:#fff; }
+  #lockInstallHint { display:none; margin-top:10px; font-size:11px; line-height:1.7; color:rgba(255,255,255,.75); text-align:left;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:10px 12px; }
   .shake { animation:shake .4s; }
   @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
 
@@ -201,6 +205,8 @@
     <div id="lockMsg">⚠️ パスワードを3回間違えるとロックがかかります</div>
     <input id="pw" type="password" placeholder="パスワード" onkeydown="if(event.key==='Enter')unlock()">
     <button id="pwBtn" onclick="unlock()">開く</button>
+    <button id="lockInstallBtn">📲 アプリ追加（ホーム画面へ）</button>
+    <div id="lockInstallHint">iPhoneの場合：Safariの共有ボタン<b>（□に↑）</b>→<b>「ホーム画面に追加」</b>でアプリとして使えます。</div>
   </div>
 </div>
 
@@ -2161,17 +2167,29 @@ async function delItem(kind, idx){
 
 /* ===== PWA ===== */
 let deferredPrompt=null;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true;
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 window.addEventListener('beforeinstallprompt', e=>{
   e.preventDefault(); deferredPrompt=e;
   document.getElementById('installBtn').style.display='block';
+  if(!isStandalone) document.getElementById('lockInstallBtn').style.display='block';
 });
-document.getElementById('installBtn').addEventListener('click', async ()=>{
-  if(!deferredPrompt) return;
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
-  deferredPrompt=null;
-  document.getElementById('installBtn').style.display='none';
-});
+async function doInstall(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt=null;
+    document.getElementById('installBtn').style.display='none';
+    document.getElementById('lockInstallBtn').style.display='none';
+  }else if(isIOS){
+    const h=document.getElementById('lockInstallHint');
+    h.style.display = h.style.display==='block' ? 'none' : 'block';
+  }
+}
+document.getElementById('installBtn').addEventListener('click', doInstall);
+document.getElementById('lockInstallBtn').addEventListener('click', doInstall);
+// iPhone(Safari)はbeforeinstallpromptが発火しないので、未インストール時はボタンを常に表示
+if(isIOS && !isStandalone) document.getElementById('lockInstallBtn').style.display='block';
 // sw.js(オフライン用)が無くてもエラーを出さない
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
