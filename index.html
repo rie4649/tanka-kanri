@@ -373,7 +373,7 @@
         <select id="newDisposalCost"><option value="disp">処分費</option><option value="trans">🚚 収集運搬費</option><option value="other">その他</option></select>
       </div>
       <div class="inline"><input id="newDisposalPrice" type="number" inputmode="decimal" placeholder="単価(任意)"><button class="addBtn" onclick="addItem('disposal')">追加</button></div>
-      <div class="note">単位は「kg」「ドラム」「回」など自由に。収集運搬費は品名を「収集運搬費」にして費目を🚚にすると一覧で分かりやすく表示されます。<br>まとめて登録:1行に1品目。「品名」「品名,単価」「品名,単位,単価」のどれでもOK(品名に「運搬」が入っていると自動で🚚になります)<br>🔗連動を設定した品目は、相場を保存すると自動で「相場±円」に更新されます</div>
+      <div class="note">①業者を選ぶ → ②品名・単位・値段を入れて右の「追加」。これで今日の日付の値段として登録されます。<br>値段が変わったら機材タブの「✏️入力」で新しい日付の値段を記録すると、品名をタップしたとき「何月何日にいくら」の履歴が見られます。<br>⬇の大きい枠は<b>まとめて登録専用</b>です(1行に1品目、「品名,単位,値段」で書いて一括登録ボタン)</div>
       <textarea class="bulk" id="bulkDisposal" placeholder="廃プラ,kg,25&#10;廃油,ドラム,8000&#10;収集運搬費,回,15000"></textarea>
       <button class="addBtn" style="width:100%" onclick="bulkAdd('disposal')">一括登録</button>
       <div class="tagList" id="disposalItemTags" style="margin-top:10px"></div>
@@ -406,7 +406,7 @@
     <div class="card">
       <h2>機材の業者・区分</h2>
       <div class="inline"><input id="newEquip" placeholder="業者名・区分(例: レンタル会社名、ガス屋)"><button class="addBtn" onclick="addTarget('equip')">追加</button></div>
-      <div class="note">高所作業車や酸素などの機材・消耗品の単価を、業者(区分)ごとに管理します。改定タイプはボタンで切り替え、「✏️名前」で名前修正、「↑↓」で並び順変更</div>
+      <div class="note">高所作業車や酸素などの機材・消耗品の値段を、業者(区分)ごとに管理します。「✏️名前」で名前修正、「↑↓」で並び順変更</div>
       <div class="tagList" id="equipTags"></div>
     </div>
     <div class="card">
@@ -682,7 +682,7 @@ function roundUnitTxt(link){
   const unit = link.roundUnit != null ? link.roundUnit : (link.round ? 1 : 0);
   return unit ? `丸め${unit}円` : '';
 }
-function freqOf(kind, c){ return c.freq || (kind==='client' ? 'monthly' : 'adhoc'); }
+function freqOf(kind, c){ if(kind==='equip') return 'adhoc'; return c.freq || (kind==='client' ? 'monthly' : 'adhoc'); }
 function fmtApply(ts, freq){
   if(!ts) return '未入力';
   const d = new Date(ts);
@@ -883,7 +883,7 @@ function renderList(kind){
   if(!target){ box.innerHTML=`<div class="empty">まず設定タブの「${KIND_LABEL[kind]}」から登録してください</div>`; meta.textContent=''; return; }
   const freq = freqOf(kind, target);
   const freqName = freq==='monthly'?'月一改定':(freq==='half'?'前半/後半改定':'都度改定');
-  meta.textContent = target.lastUpdated ? `最終更新: ${fmtApply(target.lastUpdated, freq)}${kind!=='souba'?`(${freqName})`:''}` : (kind!=='souba'?`(${freqName})`:'');
+  meta.textContent = target.lastUpdated ? `最終更新: ${fmtApply(target.lastUpdated, freq)}${(kind!=='souba'&&kind!=='equip')?`(${freqName})`:''}` : ((kind!=='souba'&&kind!=='equip')?`(${freqName})`:'');
 
   if(S.tbl[kind]){ renderTable(kind, target, box); return; }
 
@@ -893,6 +893,18 @@ function renderList(kind){
     if(!matchQ(it, q)) return;
     const df = diffOf(it);
     const linked = !!it.link;
+    if(kind==='equip'){
+      html += `<div class="row">
+      <button class="iname" onclick="showHistory('${kind}',${idx})">
+        ${esc(it.n)}
+        <span class="sub">${it.t?`${fmtApply(it.t, freq)} 時点の値段(タップで履歴)`:'値段が未入力です'}</span>
+      </button>
+      <div class="pcol">
+        ${it.p!=null?`<div class="pv">${fmtNum(it.p)}<span class="yen">円${esc(unitTxt(it))}</span></div>`:`<div class="pv unset">未設定${it.u?`(円/${esc(it.u)})`:''}</div>`}
+      </div>
+    </div>`;
+      return;
+    }
     html += `<div class="row">
       <button class="iname" onclick="showHistory('${kind}',${idx})">
         ${esc(it.n)}${emitTag(it)}${costTag(it)}
@@ -1826,7 +1838,7 @@ function renderSettings(){
     return `<div class="tagRow">
       <div class="rowName">${esc(c.name)}<span class="lk">${cnt}品目</span></div>
       <div class="rowBtns">
-        <button class="freqBtn ${f}" onclick="toggleFreq('${kind}','${c.id}')">${FREQ_LABEL[f]}</button>
+        ${kind==='equip' ? '' : `<button class="freqBtn ${f}" onclick="toggleFreq('${kind}','${c.id}')">${FREQ_LABEL[f]}</button>`}
         <button class="miniBtn" onclick="renameTarget('${kind}','${c.id}')">✏️ 名前</button>
         <span class="spacer"></span>
         <button class="ordBtn" onclick="moveTarget('${kind}','${c.id}',-1)" ${i===0?'disabled':''}>↑</button>
