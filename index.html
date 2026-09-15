@@ -1288,11 +1288,17 @@ async function saveInput(){
 
 /* ===== 履歴・グラフ ===== */
 let ASOF_CACHE = { key:'', rows:null };
+function jdate(ts){
+  if(!ts) return '';
+  const d = new Date(Number(ts));
+  if(isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
 async function renderEquipAsOf(target, freq, box, meta, dateStr){
   const q = document.getElementById('equipSearch').value.trim();
   const limitTs = new Date(dateStr + 'T23:59:59').getTime();
-  meta.textContent = `📅 ${dateStr} 時点の単価を表示中(値段の右は適用日)`;
-  const cacheKey = target.name + '|' + dateStr;
+  const jsel = jdate(limitTs);
+  meta.innerHTML = `📅 <b>${jsel} 時点</b>の単価表(それぞれ、いつからの値段かを表示)`;
   let rows = ASOF_CACHE.key===target.name ? ASOF_CACHE.rows : null;
   if(!rows){
     box.innerHTML = '<div class="empty">読み込み中…</div>';
@@ -1306,22 +1312,32 @@ async function renderEquipAsOf(target, freq, box, meta, dateStr){
       return;
     }
   }
-  // 入力欄がその間に変わっていたら中断
   const nowEl = document.getElementById('equipAsOf');
   if(!nowEl || nowEl.value!==dateStr) return;
   let html = '';
   (target.items||[]).forEach((it,idx)=>{
     if(!matchQ(it, q)) return;
-    const recs = rows.filter(r=>r.item===hk(it) && r.ts<=limitTs).sort((a,b)=>b.ts-a.ts);
-    const rec = recs[0];
+    // 履歴 + 品目自身の現在値(適用日つき)を候補にして、指定日以前で一番新しいものを採用
+    const cands = rows.filter(r=>r.item===hk(it) && Number(r.ts)<=limitTs)
+      .map(r=>({ts:Number(r.ts), p:r.newPrice}));
+    if(it.t && Number(it.t)<=limitTs) cands.push({ts:Number(it.t), p:(it.none?null:it.p)});
+    cands.sort((a,b)=>b.ts-a.ts);
+    const rec = cands[0];
+    let subTxt, priceHtml;
+    if(rec){
+      subTxt = `<b style="color:#9a3412;">${jdate(rec.ts)}</b> からこの値段(タップで履歴)`;
+      priceHtml = rec.p==null ? `<div class="pv unset">なし</div>` : `<div class="pv">${fmtNum(rec.p)}<span class="yen">円${esc(unitTxt(it))}</span></div>`;
+    }else{
+      subTxt = `${jsel}より前の値段の記録がありません`;
+      if(it.t && Number(it.t)>limitTs) subTxt += `<br>(今の値段は ${jdate(it.t)} から)`;
+      priceHtml = `<div class="pv unset">記録なし</div>`;
+    }
     html += `<div class="row">
       <button class="iname" onclick="showHistory('equip',${idx})">
         ${esc(it.n)}
-        <span class="sub">${rec?`${fmtApply(rec.ts, freq)} に記録(タップで履歴)`:'この日以前の記録がありません'}</span>
+        <span class="sub">${subTxt}</span>
       </button>
-      <div class="pcol">
-        ${rec ? (rec.newPrice==null?`<div class="pv unset">なし</div>`:`<div class="pv">${fmtNum(rec.newPrice)}<span class="yen">円${esc(unitTxt(it))}</span></div>`) : `<div class="pv unset">未記録</div>`}
-      </div>
+      <div class="pcol">${priceHtml}</div>
     </div>`;
   });
   box.innerHTML = html || '<div class="empty">該当する品目がありません</div>';
