@@ -417,9 +417,10 @@
     <div class="card">
       <h2>品目の登録(機材)</h2>
       <div class="inline"><select id="setEquipSel" onchange="renderSettingItems('equip')"></select></div>
-      <div class="inline"><input id="newEquipItem" placeholder="品名(例: 高所作業車12m、酸素7000L)"></div>
+      <div class="inline" style="align-items:center;gap:8px;"><span style="font-size:13px;font-weight:bold;color:#166534;white-space:nowrap;">📅 いつの値段?</span><input type="date" id="newEquipDate" style="flex:1;"></div>
+      <div class="inline"><input id="newEquipItem" placeholder="品名(自由入力: 高所作業車12m、酸素7000L、ガルバリウム鋼板 1200×800 など)"></div>
       <div class="inline"><input id="newEquipUnit" list="unitList" placeholder="単位(日/本/台…)"><input id="newEquipPrice" type="number" inputmode="decimal" placeholder="単価(任意)"><button class="addBtn" onclick="addItem('equip')">追加</button></div>
-      <div class="note">まとめて登録:1行に1品目。「品名」「品名,単価」「品名,単位,単価」のどれでもOK</div>
+      <div class="note">上の📅の日付の値段として登録されます(一括登録も同じ日付)。まとめて登録:1行に1品目。「品名」「品名,単価」「品名,単位,単価」のどれでもOK</div>
       <textarea class="bulk" id="bulkEquip" placeholder="高所作業車12m,日,15000&#10;酸素7000L,本,4500"></textarea>
       <button class="addBtn" style="width:100%" onclick="bulkAdd('equip')">一括登録</button>
       <div class="tagList" id="equipItemTags" style="margin-top:10px"></div>
@@ -906,7 +907,7 @@ function renderList(kind){
       html += `<div class="row">
       <button class="iname" onclick="showHistory('${kind}',${idx})">
         ${esc(it.n)}
-        <span class="sub">${it.t?`${fmtApply(it.t, freq)} 時点の値段(タップで履歴)`:'値段が未入力です'}</span>
+        <span class="sub">${it.t?`<b style="color:#166534;">${jdate(it.t)}</b> からこの値段(タップで履歴)`:'値段が未入力です'}</span>
       </button>
       <div class="pcol">
         ${it.p!=null?`<div class="pv">${fmtNum(it.p)}<span class="yen">円${esc(unitTxt(it))}</span></div>`:`<div class="pv unset">未設定${it.u?`(円/${esc(it.u)})`:''}</div>`}
@@ -1287,6 +1288,13 @@ async function saveInput(){
 }
 
 /* ===== 履歴・グラフ ===== */
+(function(){
+  const el = document.getElementById('newEquipDate');
+  if(el && !el.value){
+    const d = new Date();
+    el.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+})();
 let ASOF_CACHE = { key:'', rows:null };
 function jdate(ts){
   if(!ts) return '';
@@ -2141,6 +2149,13 @@ function readUnitCost(kind){
   return {u, c: c==='disp' ? null : c};
 }
 function autoCost(name){ return /運搬/.test(name) ? 'trans' : null; }
+function regTs(kind){
+  if(kind==='equip'){
+    const el = document.getElementById('newEquipDate');
+    if(el && el.value) return new Date(el.value + 'T12:00:00').getTime();
+  }
+  return Date.now();
+}
 async function addItem(kind){
   const sel = document.getElementById(UI[kind].sel);
   const nameInp = document.getElementById(UI[kind].name);
@@ -2164,7 +2179,7 @@ async function addItem(kind){
       const cc = c || (UI[kind].cost ? autoCost(name) : null);
       if(cc) nit.c = cc;
       if(items.find(it=>hk(it)===hk(nit))) throw new Error('同じ品名がすでにあります');
-      const ts = Date.now();
+      const ts = regTs(kind);
       if(ok) nit.t = ts;
       items.push(nit);
       tx.update(ref, {items});
@@ -2192,7 +2207,7 @@ async function bulkAdd(kind){
       const items = [...(doc.data().items||[])];
       const histRecs = [];
       added=0; skipped=0;
-      const ts = Date.now();
+      const ts = regTs(kind);
       lines.forEach(line=>{
         const parts = line.split(/[,、\t]/).map(s=>s.trim());
         const name = parts[0];
