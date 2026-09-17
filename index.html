@@ -484,6 +484,25 @@
   </div>
 </div>
 
+<!-- 設定からの単価修正 -->
+<div class="overlay" id="priceEditOverlay" onclick="if(event.target===this)closePriceEdit()" style="z-index:120;">
+  <div class="sheet" style="max-width:420px;margin:auto;border-radius:16px;">
+    <h3>💰 単価の修正</h3>
+    <div class="note" id="priceEditInfo"></div>
+    <div style="margin:12px 0;">
+      <label style="font-size:13px;font-weight:bold;color:#166534;display:block;margin-bottom:4px;">単価(円)　※空欄にすると「なし」</label>
+      <input type="number" inputmode="decimal" step="any" id="priceEditPrice" style="width:100%;font-size:18px;padding:10px;border:1.5px solid #b9ccbc;border-radius:8px;">
+    </div>
+    <div style="margin:12px 0;">
+      <label style="font-size:13px;font-weight:bold;color:#166534;display:block;margin-bottom:4px;">適用日</label>
+      <input type="date" id="priceEditDate" style="width:100%;font-size:16px;padding:10px;border:1.5px solid #b9ccbc;border-radius:8px;">
+    </div>
+    <div class="note">履歴にも残り、現在単価は日付順に自動で計算し直されます。🔗連動先には流しません(連動も動かしたいときは「✏️入力」から)</div>
+    <button class="addBtn" style="width:100%;margin-bottom:8px;" onclick="savePriceEdit()">✅ 保存</button>
+    <button class="closeBtn" onclick="closePriceEdit()">キャンセル</button>
+  </div>
+</div>
+
 <!-- 連動設定 -->
 <div class="overlay" id="linkOverlay" onclick="if(event.target===this)closeLink()">
   <div class="sheet">
@@ -2127,6 +2146,7 @@ function renderSettingItems(kind){
       ${fixBtn(kind,idx,it)}
       <button class="miniBtn" onclick="openLink('${kind}',${idx})">${kind==='emitter'?'🔗 処分先+運搬':'🔗 連動'}</button>
       <button class="miniBtn" onclick="renameItem('${kind}',${idx})">✏️ 名前</button>
+      <button class="miniBtn" style="background:#ecfdf5;border-color:#6ee7b7;color:#065f46;" onclick="openPriceEdit('${kind}',${idx})">💰 単価</button>
       ${unitBtns(kind,idx,it)}
       ${it.e?`<button class="miniBtn" onclick="clearEmitter('${kind}',${idx})">👷 排出者を外す</button>`:''}
       <span class="spacer"></span>
