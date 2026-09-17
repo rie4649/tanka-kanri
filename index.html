@@ -963,7 +963,11 @@ function shoueiItems(){
   if(!SHOUEI || !SHOUEI.items) return [];
   const out = [];
   const cop = SHOUEI.items.copper, br = SHOUEI.items.brass;
-  if(cop && (cop.series||[]).length) out.push({ key:'copper', n:cop.name||'電気銅建値', u:cop.unit||'t', series:cop.series });
+  if(cop && (cop.series||[]).length){
+    // 建値は円/tで発表されるが、他の品目と桁を揃えるため円/kgに換算(÷1,000)して表示
+    const lastT = cop.series[cop.series.length-1][1];
+    out.push({ key:'copper', n:cop.name||'電気銅建値', u:'kg', note:`建値 ${fmtNum(lastT/10000)}万円/t を1kgあたりに換算`, series: cop.series.map(r=>[r[0], round2(r[1]/1000)]) });
+  }
   if(br && (br.series||[]).length){
     out.push({ key:'brass', n:br.name||'黄銅ダライ粉', u:br.unit||'kg', series:br.series });
     out.push({ key:'bs', n:'花村産業BS粉単価', u:br.unit||'kg', note:`黄銅ダライ粉 ${SHOUEI_BS_ADJ}円`, series: br.series.map(r=>[r[0], round2(r[1]+SHOUEI_BS_ADJ)]) });
