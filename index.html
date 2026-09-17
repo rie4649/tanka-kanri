@@ -58,6 +58,8 @@
   .chips { display:flex; flex-wrap:wrap; gap:7px; padding:4px 2px 10px; }
   .chip { flex:0 0 auto; background:#fff; border:1.5px solid #b9ccbc; color:#3c5543; border-radius:18px; padding:8px 14px; font-size:13.5px; font-weight:bold; max-width:100%; word-break:break-all; line-height:1.3; text-align:left; }
   .chip.act { background:#166534; border-color:#166534; color:#fff; }
+  .chip.shoueiChip { border-color:#7dd3fc; color:#075985; background:#f0f9ff; }
+  .chip.shoueiChip.act { background:#0369a1; border-color:#0369a1; color:#fff; }
   #dpane-emitter .chip { border-color:#fcd34d; color:#92400e; background:#fffbeb; }
   #dpane-emitter .chip.act { background:#b45309; border-color:#b45309; color:#fff; }
   #page-equip .chip { border-color:#a5b4fc; color:#3730a3; background:#eef2ff; }
@@ -476,7 +478,7 @@
     <h3 id="histTitle"></h3>
     <div class="histSub" id="histSub"></div>
     <canvas id="histChart" width="640" height="320" style="display:none"></canvas>
-    <div class="note">間違った記録は✏️で訂正、🗑で削除できます。どちらも現在の単価が自動で計算し直されます。</div>
+    <div class="note" id="histNote">間違った記録は✏️で訂正、🗑で削除できます。どちらも現在の単価が自動で計算し直されます。</div>
     <div id="histList"></div>
     <button class="closeBtn" onclick="closeHist()">閉じる</button>
   </div>
@@ -798,7 +800,10 @@ function switchSetPane(kind){
 function renderChips(kind){
   const box = document.getElementById(kind+'Chips');
   const st = S[kind];
-  box.innerHTML = st.list.map(c=>`<button class="chip ${c.id===st.currentId?'act':''}" onclick="selectTarget('${kind}','${c.id}')">${c.id===st.currentId?'✓ ':''}${esc(c.name)}</button>`).join('') || `<div class="empty">設定タブの「${KIND_LABEL[kind]}」から登録してください</div>`;
+  let html = st.list.map(c=>`<button class="chip ${c.id===st.currentId?'act':''}" onclick="selectTarget('${kind}','${c.id}')">${c.id===st.currentId?'✓ ':''}${esc(c.name)}</button>`).join('');
+  // 鐘栄商店(WEBから自動取得)は設定不要の特別枠として常に表示
+  if(kind==='souba') html += `<button class="chip shoueiChip ${st.currentId===SHOUEI_ID?'act':''}" onclick="selectTarget('souba','${SHOUEI_ID}')">${st.currentId===SHOUEI_ID?'✓ ':''}🌐 ${SHOUEI_NAME}</button>`;
+  box.innerHTML = html || `<div class="empty">設定タブの「${KIND_LABEL[kind]}」から登録してください</div>`;
 }
 function selectTarget(kind,id){
   S[kind].currentId = id;
@@ -885,6 +890,7 @@ function renderList(kind){
   const st = S[kind];
   const box = document.getElementById(kind+'List');
   const meta = document.getElementById(kind+'Meta');
+  if(kind==='souba' && st.currentId===SHOUEI_ID){ renderShouei(box, meta); return; }
   const target = st.list.find(c=>c.id===st.currentId);
   if(!target){ box.innerHTML=`<div class="empty">まず設定タブの「${KIND_LABEL[kind]}」から登録してください</div>`; meta.textContent=''; return; }
   const freq = freqOf(kind, target);
@@ -930,8 +936,156 @@ function renderList(kind){
   box.innerHTML = html || '<div class="empty">該当する品名がありません</div>';
 }
 
+/* ===== 鐘栄商店(WEBから自動取得) ===== */
+// GitHub Actionsが平日12:30に鐘栄商店のサイトを見に行き、souba-shouei.json を更新します。
+// ここは閲覧専用: Firestoreは使わず、入力・訂正もありません。
+const SHOUEI_ID = 'shouei';
+const SHOUEI_NAME = '鐘栄商店';
+const SHOUEI_BS_ADJ = -70; // 花村産業BS粉 = 黄銅ダライ粉 −70円
+let SHOUEI = null;
+let SHOUEI_LOADED = false;
+
+async function loadShouei(){
+  try{
+    const res = await fetch('./souba-shouei.json?t=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    SHOUEI = await res.json();
+  }catch(e){ console.error('souba-shouei.json 読み込み失敗', e); SHOUEI = null; }
+  SHOUEI_LOADED = true;
+  renderChips('souba'); // Firestoreが読めない時でも鐘栄商店だけは見られるように
+  if(S.tab==='souba' && S.souba.currentId===SHOUEI_ID) renderList('souba');
+}
+
+function shoueiDate(dstr){ const [y,m,d] = dstr.split('-').map(Number); return `${y}/${m}/${d}`; }
+
+// 表示する3品目(BS粉はダライ粉から自動計算)
+function shoueiItems(){
+  if(!SHOUEI || !SHOUEI.items) return [];
+  const out = [];
+  const cop = SHOUEI.items.copper, br = SHOUEI.items.brass;
+  if(cop && (cop.series||[]).length) out.push({ key:'copper', n:cop.name||'電気銅建値', u:cop.unit||'t', series:cop.series });
+  if(br && (br.series||[]).length){
+    out.push({ key:'brass', n:br.name||'黄銅ダライ粉', u:br.unit||'kg', series:br.series });
+    out.push({ key:'bs', n:'花村産業BS粉単価', u:br.unit||'kg', note:`黄銅ダライ粉 ${SHOUEI_BS_ADJ}円`, series: br.series.map(r=>[r[0], round2(r[1]+SHOUEI_BS_ADJ)]) });
+  }
+  return out;
+}
+
+function renderShouei(box, meta){
+  if(!SHOUEI){
+    meta.textContent = '';
+    box.innerHTML = `<div class="empty">${SHOUEI_LOADED
+      ? '🌐 自動取得データ(souba-shouei.json)を読み込めませんでした。<br>GitHub Actionsの設置がまだなら、設置すると<br>平日12:30に自動で入るようになります'
+      : '読み込み中…'}</div>`;
+    return;
+  }
+  meta.textContent = `🌐 ${SHOUEI.fetched_at||''} 取得(鐘栄商店のサイトから平日12:30に自動更新・入力不要)`;
+  const q = document.getElementById('soubaSearch').value.trim();
+  const items = shoueiItems().filter(it=>!q || it.n.includes(q));
+  if(!items.length){ box.innerHTML = '<div class="empty">該当する品名がありません</div>'; return; }
+  if(S.tbl.souba){ renderShoueiTable(box, items); return; }
+  box.innerHTML = items.map(it=>{
+    const s = it.series;
+    const last = s[s.length-1], prev = s[s.length-2];
+    const d = (last && prev) ? round2(last[1]-prev[1]) : null;
+    const badge = d==null ? '' : (d>0 ? `<span class="diffBadge up">▲ +${fmtNum(d)}</span>` : (d<0 ? `<span class="diffBadge down">▼ ${fmtNum(d)}</span>` : `<span class="diffBadge flat">±0</span>`));
+    return `<div class="row">
+      <button class="iname" onclick="showShoueiHistory('${it.key}')">
+        ${esc(it.n)}
+        <span class="sub">${last?shoueiDate(last[0]):''}${prev?` / 前回 ${fmtNum(prev[1])}円`:''}(タップで履歴)</span>
+        ${it.note?`<span class="sub lk">🔗 ${esc(it.note)}</span>`:''}
+      </button>
+      <div class="pcol">
+        ${last?`<div class="pv">${fmtNum(last[1])}<span class="yen">円/${esc(it.u)}</span></div>`:`<div class="pv unset">未取得</div>`}
+        ${badge}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderShoueiTable(box, items){
+  const dates = [...new Set(items.flatMap(it=>it.series.map(r=>r[0])))].sort().reverse().slice(0,10);
+  const body = items.map(it=>{
+    const idxOf = {};
+    it.series.forEach((r,i)=>{ idxOf[r[0]] = i; });
+    const tds = dates.map((dk,di)=>{
+      const i = idxOf[dk];
+      if(i===undefined) return `<td class="${di===0?'latest':''}"></td>`;
+      const v = it.series[i][1];
+      let sub = '';
+      if(i>0){
+        const d = round2(v - it.series[i-1][1]);
+        if(d>0) sub = `<span class="cup">▲+${fmtNum(d)}</span>`;
+        else if(d<0) sub = `<span class="cdown">▼${fmtNum(d)}</span>`;
+      }
+      return `<td class="${di===0?'latest':''}">${fmtNum(v)}${sub}</td>`;
+    }).join('');
+    return `<tr><td class="nm">${esc(it.n)}<span class="em">円/${esc(it.u)}</span></td>${tds}</tr>`;
+  }).join('');
+  box.innerHTML = `<div class="tblWrap"><table class="ttable">
+    <tr><th class="nm">品名</th>${dates.map(dk=>`<th>${dk.slice(5).replace('-','/').replace(/^0|\/0/g,m=>m.replace('0',''))}</th>`).join('')}</tr>
+    ${body}
+  </table></div>`;
+}
+
+function showShoueiHistory(key){
+  const it = shoueiItems().find(x=>x.key===key);
+  if(!it || !it.series.length) return;
+  const s = it.series;
+  const last = s[s.length-1], prev = s[s.length-2];
+  document.getElementById('histTitle').textContent = `${SHOUEI_NAME} / ${it.n}(円/${it.u})`;
+  const d = (last && prev) ? round2(last[1]-prev[1]) : null;
+  const dfTxt = d==null ? '' : (d>0 ? `<span class="up">▲ +${fmtNum(d)}</span>` : (d<0 ? `<span class="down">▼ ${fmtNum(d)}</span>` : ''));
+  document.getElementById('histSub').innerHTML = `現在 <span style="font-size:20px">${fmtNum(last[1])}円/${esc(it.u)}</span> ${dfTxt}<br><span style="font-size:12px;color:#0e7490;">🌐 鐘栄商店のサイトから自動取得(訂正・削除はありません)</span>`;
+  document.getElementById('histNote').style.display = 'none';
+  const desc = [...s].reverse();
+  document.getElementById('histList').innerHTML = desc.slice(0,60).map((r,i)=>{
+    const pv = desc[i+1];
+    const noCmp = !pv || pv[1]===r[1];
+    const dir = noCmp ? '' : (r[1]>pv[1]?'up':'down');
+    const arrow = dir==='up'?'▲':(dir==='down'?'▼':'');
+    const dd = noCmp ? '' : ` (${r[1]>pv[1]?'+':''}${fmtNum(round2(r[1]-pv[1]))})`;
+    return `<div class="histRow">
+      <span class="d">${shoueiDate(r[0])}</span>
+      <span class="hv"><span class="autoTag">🌐自動</span><span class="${dir}">${fmtNum(r[1])}円 ${arrow}${dd}</span></span>
+    </div>`;
+  }).join('');
+  document.getElementById('histChart').style.display='none';
+  const asc = s.slice(-40);
+  if(asc.length) drawChart(asc.map(r=>r[1]), shoueiDate(asc[0][0]), shoueiDate(asc[asc.length-1][0]));
+  document.getElementById('histOverlay').classList.add('show');
+}
+
+function printShouei(){
+  const items = shoueiItems();
+  if(!items.length){ toast('印刷する品目がありません'); return; }
+  const rows = items.map(it=>{
+    const s = it.series;
+    const last = s[s.length-1], prev = s[s.length-2];
+    const d = (last && prev) ? round2(last[1]-prev[1]) : null;
+    const dtx = d==null ? 'ー' : (d>0?`▲ +${fmtNum(d)}`:(d<0?`▼ ${fmtNum(d)}`:'±0'));
+    return `<tr>
+      <td>${esc(it.n)}${it.note?' 🔗':''}</td>
+      <td>円/${esc(it.u)}</td>
+      <td class="num">${prev?fmtNum(prev[1]):'ー'}</td>
+      <td class="num"><b>${last?fmtNum(last[1]):'ー'}</b></td>
+      <td class="num">${dtx}</td>
+      <td>${last?shoueiDate(last[0]):'ー'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('printArea').innerHTML = `
+    <h2>単価表:${SHOUEI_NAME}(WEB自動取得)</h2>
+    <div class="pdate">出力日 ${fmtDate(Date.now())}(株式会社関根商店) / データ取得 ${SHOUEI?SHOUEI.fetched_at:''}</div>
+    <table>
+      <tr><th>品名</th><th>単位</th><th>前回</th><th>現在単価(円)</th><th>増減</th><th>改定日</th></tr>
+      ${rows}
+    </table>`;
+  window.print();
+}
+
 /* ===== 単価入力 ===== */
 function openInput(kind){
+  if(kind==='souba' && S.souba.currentId===SHOUEI_ID){ toast('🌐 鐘栄商店はWEBから自動で入るので、入力はいりません'); return; }
   const target = S[kind].list.find(c=>c.id===S[kind].currentId);
   if(!target){ toast(`先に${KIND_LABEL[kind]}を選んでください`); return; }
   if(!(target.items||[]).length){ toast(`設定タブの「${KIND_LABEL[kind]}」で品名を登録してください`); return; }
@@ -1356,6 +1510,7 @@ async function showHistory(kind, idx){
   const target = st.list.find(c=>c.id===st.currentId);
   if(!target) return;
   HIST.kind = kind; HIST.idx = idx;
+  document.getElementById('histNote').style.display = '';
   const freq = freqOf(kind, target);
   const item = target.items[idx];
   document.getElementById('histTitle').textContent = `${target.name} / ${hk(item)}${item.u?`(円/${item.u})`:''}`;
@@ -1551,6 +1706,7 @@ function exportCurrentCSV(){
 
 /* ===== 印刷 ===== */
 async function printView(kind){
+  if(kind==='souba' && S.souba.currentId===SHOUEI_ID){ printShouei(); return; }
   const st = S[kind];
   const target = st.list.find(c=>c.id===st.currentId);
   if(!target || !(target.items||[]).length){ toast('印刷する品目がありません'); return; }
@@ -2286,6 +2442,7 @@ if(isIOS && !isStandalone) document.getElementById('lockInstallBtn').style.displ
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 loadAll();
+loadShouei();
 </script>
 </body>
 </html>
