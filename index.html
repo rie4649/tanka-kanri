@@ -2156,6 +2156,60 @@ function renderSettingItems(kind){
     </div>
   </div>`).join('') || '<div class="note">まだ品名がありません</div>';
 }
+/* ===== 設定からの単価修正(💰ボタン) ===== */
+let PRICEEDIT = null;
+function openPriceEdit(kind, idx){
+  const sel = document.getElementById(UI[kind].sel);
+  const target = S[kind].list.find(c=>c.id===sel.value);
+  if(!target || !target.items[idx]) return;
+  const it = target.items[idx];
+  PRICEEDIT = {kind, targetId: target.id, idx};
+  const curTxt = it.p!=null ? `${fmtNum(it.p)}円${unitTxt(it)}` : (it.none?'なし':'未設定');
+  const prevTxt = it.pp!=null ? ` / 前回 ${fmtNum(it.pp)}円` : '';
+  const sinceTxt = it.t ? `(${fmtDate(it.t)}〜)` : '';
+  document.getElementById('priceEditInfo').innerHTML = `${esc(target.name)} / ${esc(hk(it))}${it.u?`(円/${esc(it.u)})`:''}<br><b>現在 ${curTxt}${sinceTxt}</b>${prevTxt}`;
+  document.getElementById('priceEditPrice').value = it.p!=null ? it.p : '';
+  document.getElementById('priceEditDate').value = todayStr();
+  document.getElementById('priceEditOverlay').classList.add('show');
+}
+function closePriceEdit(){ document.getElementById('priceEditOverlay').classList.remove('show'); PRICEEDIT=null; }
+async function savePriceEdit(){
+  if(!PRICEEDIT) return;
+  const {kind, targetId, idx} = PRICEEDIT;
+  const target = S[kind].list.find(c=>c.id===targetId);
+  if(!target || !target.items[idx]) return;
+  const it = target.items[idx];
+  const rawP = document.getElementById('priceEditPrice').value.trim();
+  const np = rawP==='' ? null : parseFloat(rawP);
+  if(np!==null && isNaN(np)){ toast('単価に数字を入力してください(空欄=なし)'); return; }
+  const dv = document.getElementById('priceEditDate').value;
+  if(!dv){ toast('適用日を選んでください'); return; }
+  const freq = freqOf(kind, target);
+  const ts = tsFromDateStr(dv);
+  const dk = dateKeyOf(ts, freq);
+  try{
+    // 同じ適用日(同じ月・前半後半など)の記録がすでにあれば上書き、なければ新しく追加
+    const snap = await db.collection('tankaHistory')
+      .where('kind','==',kind).where('target','==',target.name).where('item','==',hk(it)).get();
+    // 履歴がまだ無い古い品目は、今の単価を先に履歴に残してから新しい単価を記録する(「前回」がちゃんと出るように)
+    if(snap.docs.length===0 && it.p!=null && it.t && dateKeyOf(it.t, freq)!==dk){
+      await db.collection('tankaHistory').add(hrec(kind, target.name, it, { oldPrice:null, newPrice:(it.none?null:it.p), ts:it.t }));
+    }
+    const same = snap.docs.find(d=> dateKeyOf(d.data().ts, freq) === dk);
+    if(same){
+      await db.collection('tankaHistory').doc(same.id).update({ newPrice: np, ts });
+    } else {
+      const isCurrent = ts >= (it.t||0);
+      await db.collection('tankaHistory').add(hrec(kind, target.name, it, { oldPrice: isCurrent ? (it.p ?? null) : null, newPrice: np, ts }));
+    }
+    closePriceEdit();
+    await recalcItem(kind, targetId, hk(it));
+    S.tableCache = {};
+    await loadAll();
+    toast(`💰 ${hk(it)}: ${fmtApply(ts, freq)} ${np==null?'なし':fmtNum(np)+'円'}で記録しました`);
+  }catch(e){ console.error(e); toast('❌ 保存に失敗: '+(e.message||e)); }
+}
+
 // 品目の項目(単位・費目・固定など)を書き換える。値がnullの項目は削除
 async function setItemField(kind, idx, patch){
   const sel = document.getElementById(UI[kind].sel);
