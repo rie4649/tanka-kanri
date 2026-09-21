@@ -112,8 +112,13 @@
   /* 排出事業者向け処分単価表 */
   .emitWrap { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; }
   .emitTbl { width:100%; border-collapse:collapse; font-size:14px; }
-  .emitTbl th { background:#b45309; color:#fff; padding:8px 10px; font-size:12.5px; }
-  .emitTbl td { border-bottom:1px solid #e5e7eb; padding:9px 10px; text-align:center; word-break:break-all; }
+  .emitTbl th { background:#b45309; color:#fff; padding:8px 10px; font-size:12.5px; border-right:1px solid rgba(255,255,255,.4); }
+  .emitTbl th:last-child { border-right:none; }
+  .emitTbl td { border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb; padding:9px 10px; text-align:center; word-break:break-all; }
+  .emitTbl td:last-child { border-right:none; }
+  .emitRowTabs { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+  .emitRowTabs button { flex:1; min-width:32px; padding:9px 0; font-size:14px; font-weight:bold; border:1px solid #fcd34d; background:#fffbeb; color:#92400e; border-radius:8px; }
+  .emitRowTabs button.act { background:#b45309; border-color:#b45309; color:#fff; }
   .emitTbl td.pr { text-align:right; font-weight:bold; white-space:nowrap; }
   .emitTbl td.nt { font-size:12px; color:#555; text-align:left; }
   .emitTbl tr.kanaHead td { background:#fde8d7; color:#9a3412; font-weight:bold; text-align:left; padding:5px 10px; font-size:13px; }
@@ -280,11 +285,12 @@
     <div id="disposalList"></div>
   </div>
   <div class="dpane" id="dpane-emitter">
+    <div class="emitRowTabs" id="emitterRowTabs"></div>
     <div class="toolRow">
       <input class="searchBox" id="emitterSearch" placeholder="🔍 品名・備考で検索" oninput="renderEmitterList()">
       <button class="toolBtn" onclick="printEmitter()">🖨️</button>
     </div>
-    <div class="meta">排出事業者(お客様)向けの処分単価表・あいうえお順。登録・修正は ⚙設定 → 👷排出事業者 から</div>
+    <div class="meta">上の「あ・か・さ…」を押すと、その行の品名が出ます。並び順の変更・登録・修正は ⚙設定 → 👷排出事業者 から</div>
     <div id="emitterList"></div>
   </div>
 </div>
@@ -400,7 +406,10 @@
       <div class="inline"><input id="emitKana" placeholder="ふりがな(例: あるみすけーる)"></div>
       <div class="inline">
         <input id="emitPrice" type="number" inputmode="decimal" placeholder="単価(空欄OK)">
-        <input id="emitUnit" list="unitList" placeholder="単位(kg/㎥…)">
+        <select id="emitUnitSel" onchange="emitUnitSelChange()"></select>
+      </div>
+      <div class="inline" id="emitUnitFreeRow" style="display:none">
+        <input id="emitUnit" placeholder="単位を手入力(例: パレット)">
       </div>
       <div class="inline"><input id="emitNote" placeholder="備考(例: 処分先:佐藤商会)"></div>
       <div class="inline">
@@ -818,6 +827,7 @@ async function loadAll(){
     const esnap = await db.collection(EMIT_COL).get();
     emitterItems = esnap.docs.map(d=>({id:d.id, ...d.data()}));
     await seedEmitterItems();
+    await ensureEmitterOrder();
   }catch(e){ console.error(e); emitterItems = []; }
   S.tableCache = {};
   renderAll();
@@ -2234,6 +2244,8 @@ async function moveItem(kind, idx, dir){
 const EMIT_COL = 'tankaEmitterItems';
 let emitterItems = [];
 let emitterEditId = null;
+let emitterRowSel = 'あ';
+const EMIT_ROW_TABS = ['あ','か','さ','た','な','は','ま','や','ら','わ','他'];
 const EMIT_SEED = [
   {name:'吉田工業: アルミスケール', kana:'あるみすけーる(よしだこうぎょう)', price:70, unit:'kg', note:''},
   {name:'アルミスケール', kana:'あるみすけーる', price:80, unit:'kg', note:''},
@@ -2268,10 +2280,67 @@ function emitRowOf(it){
   const s = emitKanaKey(it).replace(/^ー+/, '');
   const ch = s.charAt(0);
   for(const [row, chars] of EMIT_ROWS){ if(chars.includes(ch)) return row; }
-  return '英数・その他';
+  return '他';
 }
+function emitRowIdx(it){ return EMIT_ROW_TABS.indexOf(emitRowOf(it)); }
 function sortedEmitterItems(){
-  return [...emitterItems].sort((a,b)=> emitKanaKey(a).localeCompare(emitKanaKey(b),'ja') || (a.name||'').localeCompare(b.name||'','ja'));
+  return [...emitterItems].sort((a,b)=> emitRowIdx(a)-emitRowIdx(b) || (a.order??9999)-(b.order??9999) || emitKanaKey(a).localeCompare(emitKanaKey(b),'ja'));
+}
+async function ensureEmitterOrder(){
+  if(!emitterItems.length || !emitterItems.some(it=>it.order==null)) return;
+  const sorted = [...emitterItems].sort((a,b)=> emitRowIdx(a)-emitRowIdx(b) || emitKanaKey(a).localeCompare(emitKanaKey(b),'ja'));
+  try{
+    const batch = db.batch();
+    sorted.forEach((it,i)=>{ it.order = i; batch.update(db.collection(EMIT_COL).doc(it.id), {order:i}); });
+    await batch.commit();
+  }catch(e){ console.error(e); }
+}
+function renderEmitterRowTabs(){
+  const box = document.getElementById('emitterRowTabs');
+  if(!box) return;
+  box.innerHTML = EMIT_ROW_TABS.map(r=>`<button class="${r===emitterRowSel?'act':''}" onclick="selectEmitterRow('${r}')">${r}</button>`).join('');
+}
+function selectEmitterRow(r){
+  emitterRowSel = r;
+  const s = document.getElementById('emitterSearch');
+  if(s) s.value = '';
+  renderEmitterRowTabs(); renderEmitterList();
+}
+async function moveEmitterItem(id, dir){
+  const it = emitterItems.find(x=>x.id===id);
+  if(!it) return;
+  const grp = sortedEmitterItems().filter(x=>emitRowOf(x)===emitRowOf(it));
+  const i = grp.findIndex(x=>x.id===id), j = i + dir;
+  if(j<0 || j>=grp.length) return;
+  const other = grp[j];
+  const a = it.order??0, b = other.order??0;
+  try{
+    const batch = db.batch();
+    batch.update(db.collection(EMIT_COL).doc(it.id), {order:b});
+    batch.update(db.collection(EMIT_COL).doc(other.id), {order:a});
+    await batch.commit();
+    it.order = b; other.order = a;
+    renderEmitterAll();
+  }catch(e){ console.error(e); toast('❌ 並べ替えに失敗: '+(e.message||e)); }
+}
+function renderEmitterUnitOptions(){
+  const sel = document.getElementById('emitUnitSel');
+  if(!sel) return;
+  const cur = sel.value;
+  const set = new Set(DEFAULT_UNITS);
+  emitterItems.forEach(it=>{ if(it.unit) set.add(it.unit); });
+  sel.innerHTML = '<option value="">単位なし</option>' + [...set].map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('') + '<option value="__free">✏️ その他(手入力)</option>';
+  if(cur && (cur==='__free' || set.has(cur))) sel.value = cur;
+}
+function emitUnitSelChange(){
+  const free = document.getElementById('emitUnitSel').value==='__free';
+  document.getElementById('emitUnitFreeRow').style.display = free?'':'none';
+  if(!free) document.getElementById('emitUnit').value = '';
+}
+function emitUnitVal(){
+  const sel = document.getElementById('emitUnitSel');
+  if(!sel) return '';
+  return sel.value==='__free' ? document.getElementById('emitUnit').value.trim() : sel.value;
 }
 function emitPriceTxt(it){ return (it.price==null || it.price==='') ? '—' : Number(it.price).toLocaleString(); }
 function renderEmitterList(){
@@ -2280,7 +2349,8 @@ function renderEmitterList(){
   const q = (document.getElementById('emitterSearch')?.value||'').trim();
   let list = sortedEmitterItems();
   if(q) list = list.filter(it=> (it.name||'').includes(q) || (it.kana||'').includes(q) || (it.note||'').includes(q));
-  if(!list.length){ box.innerHTML = '<div class="empty">'+(q?'該当する品目がありません':'まだ登録がありません。⚙設定 → 👷排出事業者 から登録してください')+'</div>'; return; }
+  else list = list.filter(it=> emitRowOf(it)===emitterRowSel);
+  if(!list.length){ box.innerHTML = '<div class="empty">'+(q?'該当する品目がありません':`「${emitterRowSel}」の品目はまだありません`)+'</div>'; return; }
   let html = '<div class="emitWrap"><table class="emitTbl"><tr><th style="text-align:left;">品名</th><th>単価</th><th>単位</th><th style="text-align:left;">備考</th></tr>';
   let lastRow = null;
   list.forEach(it=>{
@@ -2296,18 +2366,33 @@ function renderEmitterList(){
 function renderEmitterSettings(){
   const box = document.getElementById('emitterItemRows');
   if(!box) return;
-  box.innerHTML = sortedEmitterItems().map(it=>`
+  const list = sortedEmitterItems();
+  if(!list.length){ box.innerHTML = '<div class="note">まだ登録がありません</div>'; return; }
+  let html = '';
+  let lastRow = null;
+  list.forEach(it=>{
+    const row = emitRowOf(it);
+    if(row!==lastRow){ html += `<div class="note" style="font-weight:bold;color:#9a3412;margin-top:10px;">【 ${row} 】　↑↓で並び順を変更できます</div>`; lastRow = row; }
+    const grp = list.filter(x=>emitRowOf(x)===row);
+    const gi = grp.findIndex(x=>x.id===it.id);
+    html += `
     <div class="tagRow">
       <div class="rowName">${esc(it.name||'')}<span class="lk">${esc(it.kana||'')}　${emitPriceTxt(it)}${it.price!=null?'円':''}${it.unit?'/'+esc(it.unit):''}${it.note?'　'+esc(it.note):''}</span></div>
       <div class="rowBtns">
-        <button class="miniBtn" onclick="openEmitterEdit('${it.id}')">✏️ 修正</button>
+        <button class="ordBtn" onclick="moveEmitterItem('${it.id}',-1)" ${gi===0?'disabled':''}>↑</button>
+        <button class="ordBtn" onclick="moveEmitterItem('${it.id}',1)" ${gi===grp.length-1?'disabled':''}>↓</button>
+        <button class="miniBtn" onclick="openEmitterEdit('${it.id}')">✏️</button>
         <button class="miniDel" onclick="deleteEmitterItem('${it.id}')">🗑</button>
       </div>
-    </div>`).join('') || '<div class="note">まだ登録がありません</div>';
+    </div>`;
+  });
+  box.innerHTML = html;
 }
-function renderEmitterAll(){ renderEmitterList(); renderEmitterSettings(); }
+function renderEmitterAll(){ renderEmitterRowTabs(); renderEmitterList(); renderEmitterSettings(); renderEmitterUnitOptions(); }
 function emitFormClear(){
   ['emitName','emitKana','emitPrice','emitUnit','emitNote'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('emitUnitSel').value = '';
+  document.getElementById('emitUnitFreeRow').style.display = 'none';
   emitterEditId = null;
   document.getElementById('emitAddBtn').textContent = '追加';
   document.getElementById('emitCancelBtn').style.display = 'none';
@@ -2317,7 +2402,7 @@ async function addEmitterItem(){
     name: document.getElementById('emitName').value.trim(),
     kana: document.getElementById('emitKana').value.trim(),
     price: document.getElementById('emitPrice').value==='' ? null : Number(document.getElementById('emitPrice').value),
-    unit: document.getElementById('emitUnit').value.trim(),
+    unit: emitUnitVal(),
     note: document.getElementById('emitNote').value.trim()
   };
   if(!v.name){ toast('品名を入力してください'); return; }
@@ -2330,6 +2415,7 @@ async function addEmitterItem(){
       toast(`「${v.name}」を修正しました`);
     } else {
       if(emitterItems.find(x=>(x.name||'')===v.name)){ toast('同じ品名がすでにあります'); return; }
+      v.order = Math.max(-1, ...emitterItems.map(x=>x.order??-1)) + 1;
       const ref = await db.collection(EMIT_COL).add(v);
       emitterItems.push({id:ref.id, ...v});
       toast(`「${v.name}」を登録しました`);
@@ -2345,7 +2431,14 @@ function openEmitterEdit(id){
   document.getElementById('emitName').value = it.name||'';
   document.getElementById('emitKana').value = it.kana||'';
   document.getElementById('emitPrice').value = it.price==null?'':it.price;
-  document.getElementById('emitUnit').value = it.unit||'';
+  renderEmitterUnitOptions();
+  const usel = document.getElementById('emitUnitSel');
+  const u = it.unit||'';
+  if(!u) usel.value = '';
+  else if([...usel.options].some(o=>o.value===u)) usel.value = u;
+  else usel.value = '__free';
+  emitUnitSelChange();
+  if(usel.value==='__free') document.getElementById('emitUnit').value = u;
   document.getElementById('emitNote').value = it.note||'';
   document.getElementById('emitAddBtn').textContent = '修正を保存';
   document.getElementById('emitCancelBtn').style.display = '';
@@ -2376,6 +2469,7 @@ async function bulkAddEmitter(){
       if(!v.name){ skipped++; continue; }
       if(v.price!=null && isNaN(v.price)) v.price = null;
       if(emitterItems.find(x=>(x.name||'')===v.name) || newOnes.find(x=>x.name===v.name)){ skipped++; continue; }
+      v.order = Math.max(-1, ...emitterItems.map(x=>x.order??-1), ...newOnes.map(x=>x.order??-1)) + 1;
       const ref = db.collection(EMIT_COL).doc();
       batch.set(ref, v);
       newOnes.push({id:ref.id, ...v});
