@@ -109,6 +109,14 @@
   .subTabs.dm { margin-bottom:8px; }
   .subTabs.dm .subTab { font-size:13px; padding:10px 0; }
   .subTabs.dm #dm-emitter.act { background:#b45309; border-color:#b45309; }
+  /* 排出事業者向け処分単価表 */
+  .emitWrap { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; }
+  .emitTbl { width:100%; border-collapse:collapse; font-size:14px; }
+  .emitTbl th { background:#b45309; color:#fff; padding:8px 10px; font-size:12.5px; }
+  .emitTbl td { border-bottom:1px solid #e5e7eb; padding:9px 10px; text-align:center; word-break:break-all; }
+  .emitTbl td.pr { text-align:right; font-weight:bold; white-space:nowrap; }
+  .emitTbl td.nt { font-size:12px; color:#555; text-align:left; }
+  .emitTbl tr.kanaHead td { background:#fde8d7; color:#9a3412; font-weight:bold; text-align:left; padding:5px 10px; font-size:13px; }
   .setPane, .dpane { display:none; }
   .setPane.act, .dpane.act { display:block; }
 
@@ -272,14 +280,11 @@
     <div id="disposalList"></div>
   </div>
   <div class="dpane" id="dpane-emitter">
-    <div class="chips" id="emitterChips"></div>
     <div class="toolRow">
-      <input class="searchBox" id="emitterSearch" placeholder="🔍 品名で検索" oninput="renderList('emitter')">
-      <button class="inputBtn" onclick="openInput('emitter')">✏️ 入力</button>
-      <button class="toolBtn" id="tblBtnE" onclick="toggleTable('emitter')">📋 表</button>
-      <button class="toolBtn" onclick="printView('emitter')">🖨️</button>
+      <input class="searchBox" id="emitterSearch" placeholder="🔍 品名・備考で検索" oninput="renderEmitterList()">
+      <button class="toolBtn" onclick="printEmitter()">🖨️</button>
     </div>
-    <div class="meta" id="emitterMeta"></div>
+    <div class="meta">排出事業者(お客様)向けの処分単価表・あいうえお順。登録・修正は ⚙設定 → 👷排出事業者 から</div>
     <div id="emitterList"></div>
   </div>
 </div>
@@ -389,24 +394,26 @@
 
   <div class="setPane" id="pane-emitter">
     <div class="card">
-      <h2>排出事業者</h2>
-      <div class="inline"><input id="newEmitter" placeholder="排出事業者名"><button class="addBtn" onclick="addTarget('emitter')">追加</button></div>
-      <div class="note">排出事業者(お客様)ごとに、請求する処分単価・収集運搬費を管理します。改定タイプはボタンで切り替え、「✏️名前」で名前修正、「↑↓」で並び順変更</div>
-      <div class="tagList" id="emitterTags"></div>
+      <h2>排出事業者向け処分単価の品目</h2>
+      <div class="note">お客様(排出事業者)に請求する処分単価の一覧です。<b>ふりがなの、あいうえお順</b>に並びます(ふりがなが空欄のときは品名で並びます)。単価が決まっていないもの(要相談など)は単価を空欄のままでOK</div>
+      <div class="inline"><input id="emitName" placeholder="品名(例: アルミスケール)"></div>
+      <div class="inline"><input id="emitKana" placeholder="ふりがな(例: あるみすけーる)"></div>
+      <div class="inline">
+        <input id="emitPrice" type="number" inputmode="decimal" placeholder="単価(空欄OK)">
+        <input id="emitUnit" list="unitList" placeholder="単位(kg/㎥…)">
+      </div>
+      <div class="inline"><input id="emitNote" placeholder="備考(例: 処分先:佐藤商会)"></div>
+      <div class="inline">
+        <button class="addBtn" id="emitAddBtn" style="flex:1" onclick="addEmitterItem()">追加</button>
+        <button class="miniBtn" id="emitCancelBtn" style="display:none" onclick="emitFormClear()">やめる</button>
+      </div>
     </div>
     <div class="card">
-      <h2>品目の登録(排出事業者)</h2>
-      <div class="inline"><select id="setEmitterSel" onchange="renderSettingItems('emitter')"></select></div>
-      <div class="inline"><input id="newEmitterItem" placeholder="品名(例: 廃プラ、収集運搬費)"></div>
-      <div class="inline">
-        <input id="newEmitterUnit" list="unitList" placeholder="単位(kg/ドラム/回…)">
-        <select id="newEmitterCost"><option value="disp">処分費</option><option value="trans">🚚 収集運搬費</option><option value="other">その他</option></select>
-      </div>
-      <div class="inline"><input id="newEmitterPrice" type="number" inputmode="decimal" placeholder="単価(任意)"><button class="addBtn" onclick="addItem('emitter')">追加</button></div>
-      <div class="note">まとめて登録:1行に1品目。「品名」「品名,単価」「品名,単位,単価」のどれでもOK(品名に「運搬」が入っていると自動で🚚になります)</div>
-      <textarea class="bulk" id="bulkEmitter" placeholder="廃プラ,kg,30&#10;収集運搬費,回,20000"></textarea>
-      <button class="addBtn" style="width:100%" onclick="bulkAdd('emitter')">一括登録</button>
-      <div class="tagList" id="emitterItemTags" style="margin-top:10px"></div>
+      <h2>まとめて登録</h2>
+      <div class="note">1行に1品目。「品名,ふりがな,単価,単位,備考」の順(ふりがな以降は省略OK)。この枠に書いた分だけを一括登録します</div>
+      <textarea class="bulk" id="bulkEmitterItems" placeholder="アルミスケール,あるみすけーる,80,kg&#10;アスファルト,あすふぁると,4000,㎥,処分先:佐藤商会&#10;アスベスト(要相談),あすべすと"></textarea>
+      <button class="addBtn" style="width:100%" onclick="bulkAddEmitter()">一括登録</button>
+      <div class="tagList" id="emitterItemRows" style="margin-top:10px"></div>
     </div>
   </div>
   <div class="setPane" id="pane-equip">
@@ -574,15 +581,15 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const COL = { souba:'tankaCompanies', client:'tankaClientList', disposal:'tankaDisposalList', emitter:'tankaEmitterList', equip:'tankaEquipList' };
-const KINDS = ['souba','client','disposal','emitter','equip'];
-const KIND_LABEL = { souba:'相場', client:'取引先', disposal:'処分先', emitter:'排出事業者', equip:'機材' };
+const COL = { souba:'tankaCompanies', client:'tankaClientList', disposal:'tankaDisposalList', equip:'tankaEquipList' };
+const KINDS = ['souba','client','disposal','equip'];
+const SET_PANES = ['souba','client','disposal','emitter','equip'];
+const KIND_LABEL = { souba:'相場', client:'取引先', disposal:'処分先', equip:'機材' };
 // 画面部品のIDを種別ごとにまとめたもの
 const UI = {
   souba:   { sel:'setCompanySel',  tags:'soubaItemTags',    name:'newSoubaItem',    price:'newSoubaPrice',    bulk:'bulkSouba',    newTarget:'newCompany',  targetTags:'companyTags',  tblBtn:'tblBtnS' },
   client:  { sel:'setClientSel',   tags:'clientItemTags',   name:'newClientItem',   price:'newClientPrice',   bulk:'bulkClient',   newTarget:'newClient',   targetTags:'clientTags',   tblBtn:'tblBtnC' },
   disposal:{ sel:'setDisposalSel', tags:'disposalItemTags', name:'newDisposalItem', price:'newDisposalPrice', bulk:'bulkDisposal', newTarget:'newDisposal', targetTags:'disposalTags', tblBtn:'tblBtnD', unit:'newDisposalUnit', cost:'newDisposalCost' },
-  emitter: { sel:'setEmitterSel',  tags:'emitterItemTags',  name:'newEmitterItem',  price:'newEmitterPrice',  bulk:'bulkEmitter',  newTarget:'newEmitter',  targetTags:'emitterTags',  tblBtn:'tblBtnE', unit:'newEmitterUnit',  cost:'newEmitterCost' },
   equip:   { sel:'setEquipSel',    tags:'equipItemTags',    name:'newEquipItem',    price:'newEquipPrice',    bulk:'bulkEquip',    newTarget:'newEquip',    targetTags:'equipTags',    tblBtn:'tblBtnQ', unit:'newEquipUnit' }
 };
 const DEFAULT_COMPANIES = ['産業新聞(非鉄)','産業新聞(鉄)','朝日工業','東京製鐵(宇都宮)','東京製鐵(田原)','花村産業','恒成','信越軽金属'];
@@ -595,12 +602,11 @@ const DEFAULT_UNITS = ['kg','t','㎥','L','ドラム','缶','袋','本','台','�
 const S = {
   tab:'souba',
   passcode:'s2292',
-  tbl:{ souba:false, client:false, disposal:false, emitter:false, equip:false },
+  tbl:{ souba:false, client:false, disposal:false, equip:false },
   tableCache:{},
   souba:{ list:[], currentId:null },
   client:{ list:[], currentId:null },
   disposal:{ list:[], currentId:null },
-  emitter:{ list:[], currentId:null },
   equip:{ list:[], currentId:null }
 };
 const IN = { kind:null, values:{}, half:'A' };
@@ -794,7 +800,7 @@ async function loadAll(){
     return;
   }
   // 処分先・排出事業者は別枠で読む(ここが失敗しても相場・取引先は普通に使えるように)
-  for(const kind of ['disposal','emitter','equip']){
+  for(const kind of ['disposal','equip']){
     try{
       const dsnap = await db.collection(COL[kind]).orderBy('order').get();
       S[kind].list = dsnap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -807,6 +813,12 @@ async function loadAll(){
       t.className='show err'; setTimeout(()=>{ t.className=''; }, 10000);
     }
   }
+  // 排出事業者向け処分単価(品目一覧)
+  try{
+    const esnap = await db.collection(EMIT_COL).get();
+    emitterItems = esnap.docs.map(d=>({id:d.id, ...d.data()}));
+    await seedEmitterItems();
+  }catch(e){ console.error(e); emitterItems = []; }
   S.tableCache = {};
   renderAll();
 }
@@ -814,6 +826,7 @@ function reloadAll(){ loadAll().then(()=>toast('再読込しました')); }
 
 function renderAll(){
   KINDS.forEach(k=>{ renderChips(k); renderList(k); });
+  renderEmitterAll();
   renderSettings();
 }
 
@@ -830,7 +843,7 @@ function switchDispPane(kind){
   });
 }
 function switchSetPane(kind){
-  KINDS.forEach(k=>{
+  SET_PANES.forEach(k=>{
     document.getElementById('st-'+k).classList.toggle('act', k===kind);
     document.getElementById('pane-'+k).classList.toggle('act', k===kind);
   });
@@ -2217,6 +2230,190 @@ async function moveItem(kind, idx, dir){
 }
 
 /* ===== 設定 ===== */
+/* ===== 排出事業者向け処分単価(あいうえお順の単価表) ===== */
+const EMIT_COL = 'tankaEmitterItems';
+let emitterItems = [];
+let emitterEditId = null;
+const EMIT_SEED = [
+  {name:'吉田工業: アルミスケール', kana:'あるみすけーる(よしだこうぎょう)', price:70, unit:'kg', note:''},
+  {name:'アルミスケール', kana:'あるみすけーる', price:80, unit:'kg', note:''},
+  {name:'アスファルト', kana:'あすふぁると', price:4000, unit:'㎥', note:'処分先:佐藤商会'},
+  {name:'アスファルト混入品', kana:'あすふぁるとこんにゅうひん', price:6000, unit:'㎥', note:'処分先:佐藤商会'},
+  {name:'アルミナ(酸化アルミニウム)', kana:'あるみな', price:50, unit:'kg', note:'排出者:エンドレスプロジェクト'},
+  {name:'アスベスト(要相談)', kana:'あすべすと', price:null, unit:'', note:''},
+  {name:'油付きダンボール', kana:'あぶらつきだんぼーる', price:40, unit:'kg', note:''},
+  {name:'油付きウエス', kana:'あぶらつきうえす', price:350, unit:'kg', note:'排出者:アイケイメンテナンス 処分先:ゼンユー'},
+  {name:'RPF可燃', kana:'あーるぴーえふかねん', price:75, unit:'kg', note:''}
+];
+async function seedEmitterItems(){
+  if(emitterItems.length) return; // 1件でも登録があれば何もしない
+  try{
+    const batch = db.batch();
+    const newOnes = [];
+    EMIT_SEED.forEach(x=>{ const ref = db.collection(EMIT_COL).doc(); batch.set(ref, x); newOnes.push({id:ref.id, ...x}); });
+    await batch.commit();
+    emitterItems = newOnes;
+  }catch(e){ console.error(e); }
+}
+function emitKanaKey(it){
+  const s = ((it.kana||'').trim() || (it.name||'').trim());
+  return s.replace(/[ァ-ヶ]/g, ch=>String.fromCharCode(ch.charCodeAt(0)-0x60)).toLowerCase();
+}
+const EMIT_ROWS = [
+  ['あ','あいうえおぁぃぅぇぉゔ'], ['か','かきくけこがぎぐげご'], ['さ','さしすせそざじずぜぞ'],
+  ['た','たちつてとだぢづでどっ'], ['な','なにぬねの'], ['は','はひふへほばびぶべぼぱぴぷぺぽ'],
+  ['ま','まみむめも'], ['や','やゆよゃゅょ'], ['ら','らりるれろ'], ['わ','わをん']
+];
+function emitRowOf(it){
+  const s = emitKanaKey(it).replace(/^ー+/, '');
+  const ch = s.charAt(0);
+  for(const [row, chars] of EMIT_ROWS){ if(chars.includes(ch)) return row; }
+  return '英数・その他';
+}
+function sortedEmitterItems(){
+  return [...emitterItems].sort((a,b)=> emitKanaKey(a).localeCompare(emitKanaKey(b),'ja') || (a.name||'').localeCompare(b.name||'','ja'));
+}
+function emitPriceTxt(it){ return (it.price==null || it.price==='') ? '—' : Number(it.price).toLocaleString(); }
+function renderEmitterList(){
+  const box = document.getElementById('emitterList');
+  if(!box) return;
+  const q = (document.getElementById('emitterSearch')?.value||'').trim();
+  let list = sortedEmitterItems();
+  if(q) list = list.filter(it=> (it.name||'').includes(q) || (it.kana||'').includes(q) || (it.note||'').includes(q));
+  if(!list.length){ box.innerHTML = '<div class="empty">'+(q?'該当する品目がありません':'まだ登録がありません。⚙設定 → 👷排出事業者 から登録してください')+'</div>'; return; }
+  let html = '<div class="emitWrap"><table class="emitTbl"><tr><th style="text-align:left;">品名</th><th>単価</th><th>単位</th><th style="text-align:left;">備考</th></tr>';
+  let lastRow = null;
+  list.forEach(it=>{
+    if(!q){
+      const row = emitRowOf(it);
+      if(row!==lastRow){ html += `<tr class="kanaHead"><td colspan="4">${row}</td></tr>`; lastRow = row; }
+    }
+    html += `<tr><td style="text-align:left;">${esc(it.name||'')}</td><td class="pr">${emitPriceTxt(it)}</td><td>${esc(it.unit||'')}</td><td class="nt">${esc(it.note||'')}</td></tr>`;
+  });
+  html += '</table></div>';
+  box.innerHTML = html;
+}
+function renderEmitterSettings(){
+  const box = document.getElementById('emitterItemRows');
+  if(!box) return;
+  box.innerHTML = sortedEmitterItems().map(it=>`
+    <div class="tagRow">
+      <div class="rowName">${esc(it.name||'')}<span class="lk">${esc(it.kana||'')}　${emitPriceTxt(it)}${it.price!=null?'円':''}${it.unit?'/'+esc(it.unit):''}${it.note?'　'+esc(it.note):''}</span></div>
+      <div class="rowBtns">
+        <button class="miniBtn" onclick="openEmitterEdit('${it.id}')">✏️ 修正</button>
+        <button class="miniDel" onclick="deleteEmitterItem('${it.id}')">🗑</button>
+      </div>
+    </div>`).join('') || '<div class="note">まだ登録がありません</div>';
+}
+function renderEmitterAll(){ renderEmitterList(); renderEmitterSettings(); }
+function emitFormClear(){
+  ['emitName','emitKana','emitPrice','emitUnit','emitNote'].forEach(id=>document.getElementById(id).value='');
+  emitterEditId = null;
+  document.getElementById('emitAddBtn').textContent = '追加';
+  document.getElementById('emitCancelBtn').style.display = 'none';
+}
+async function addEmitterItem(){
+  const v = {
+    name: document.getElementById('emitName').value.trim(),
+    kana: document.getElementById('emitKana').value.trim(),
+    price: document.getElementById('emitPrice').value==='' ? null : Number(document.getElementById('emitPrice').value),
+    unit: document.getElementById('emitUnit').value.trim(),
+    note: document.getElementById('emitNote').value.trim()
+  };
+  if(!v.name){ toast('品名を入力してください'); return; }
+  if(v.price!=null && isNaN(v.price)){ toast('単価は数字で入力してください'); return; }
+  try{
+    if(emitterEditId){
+      await db.collection(EMIT_COL).doc(emitterEditId).update(v);
+      const it = emitterItems.find(x=>x.id===emitterEditId);
+      if(it) Object.assign(it, v);
+      toast(`「${v.name}」を修正しました`);
+    } else {
+      if(emitterItems.find(x=>(x.name||'')===v.name)){ toast('同じ品名がすでにあります'); return; }
+      const ref = await db.collection(EMIT_COL).add(v);
+      emitterItems.push({id:ref.id, ...v});
+      toast(`「${v.name}」を登録しました`);
+    }
+    emitFormClear();
+    renderEmitterAll();
+  }catch(e){ console.error(e); toast('❌ 保存に失敗: '+(e.message||e)); }
+}
+function openEmitterEdit(id){
+  const it = emitterItems.find(x=>x.id===id);
+  if(!it) return;
+  emitterEditId = id;
+  document.getElementById('emitName').value = it.name||'';
+  document.getElementById('emitKana').value = it.kana||'';
+  document.getElementById('emitPrice').value = it.price==null?'':it.price;
+  document.getElementById('emitUnit').value = it.unit||'';
+  document.getElementById('emitNote').value = it.note||'';
+  document.getElementById('emitAddBtn').textContent = '修正を保存';
+  document.getElementById('emitCancelBtn').style.display = '';
+  document.getElementById('emitName').scrollIntoView({behavior:'smooth', block:'center'});
+}
+async function deleteEmitterItem(id){
+  const it = emitterItems.find(x=>x.id===id);
+  if(!it) return;
+  if(!confirm(`「${it.name}」を削除しますか?`)) return;
+  try{
+    await db.collection(EMIT_COL).doc(id).delete();
+    emitterItems = emitterItems.filter(x=>x.id!==id);
+    if(emitterEditId===id) emitFormClear();
+    renderEmitterAll();
+    toast('削除しました');
+  }catch(e){ console.error(e); toast('❌ 削除に失敗: '+(e.message||e)); }
+}
+async function bulkAddEmitter(){
+  const lines = document.getElementById('bulkEmitterItems').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){ toast('登録する行がありません'); return; }
+  let added = 0, skipped = 0;
+  try{
+    const batch = db.batch();
+    const newOnes = [];
+    for(const line of lines){
+      const p = line.split(/[,、\t]/).map(s=>s.trim());
+      const v = { name:p[0]||'', kana:p[1]||'', price:(p[2]==null||p[2]==='')?null:Number(p[2].replace(/[¥,円]/g,'')), unit:p[3]||'', note:p.slice(4).join(' ')||'' };
+      if(!v.name){ skipped++; continue; }
+      if(v.price!=null && isNaN(v.price)) v.price = null;
+      if(emitterItems.find(x=>(x.name||'')===v.name) || newOnes.find(x=>x.name===v.name)){ skipped++; continue; }
+      const ref = db.collection(EMIT_COL).doc();
+      batch.set(ref, v);
+      newOnes.push({id:ref.id, ...v});
+      added++;
+    }
+    if(added){ await batch.commit(); emitterItems.push(...newOnes); }
+    document.getElementById('bulkEmitterItems').value = '';
+    renderEmitterAll();
+    toast(`${added}件登録しました${skipped?`(${skipped}件は空行・重複でスキップ)`:''}`);
+  }catch(e){ console.error(e); toast('❌ 一括登録に失敗: '+(e.message||e)); }
+}
+function printEmitter(){
+  const list = sortedEmitterItems();
+  if(!list.length){ toast('まだ登録がありません'); return; }
+  let rowsHtml = '';
+  let lastRow = null;
+  list.forEach(it=>{
+    const row = emitRowOf(it);
+    if(row!==lastRow){ rowsHtml += `<tr class="kh"><td colspan="4">${row}</td></tr>`; lastRow = row; }
+    rowsHtml += `<tr><td class="nm">${esc(it.name||'')}</td><td class="pr">${emitPriceTxt(it)}</td><td class="un">${esc(it.unit||'')}</td><td class="nt">${esc(it.note||'')}</td></tr>`;
+  });
+  const w = window.open('', '_blank');
+  if(!w){ toast('ポップアップがブロックされました'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>排出事業者向け処分単価表</title><style>
+    body{font-family:"Hiragino Sans","Yu Gothic",sans-serif;margin:24px;}
+    h1{font-size:18px;margin:0 0 4px;} .d{font-size:11px;color:#555;margin-bottom:10px;}
+    table{border-collapse:collapse;width:100%;font-size:12px;}
+    th,td{border:1px solid #333;padding:5px 8px;}
+    th{background:#f2f2f2;}
+    td.pr{text-align:right;width:80px;} td.un{text-align:center;width:60px;}
+    tr.kh td{background:#fde8d7;font-weight:bold;}
+  </style></head><body>
+  <h1>排出事業者向け処分単価表</h1><div class="d">${new Date().toLocaleDateString('ja-JP')} 現在・あいうえお順</div>
+  <table><tr><th>品名</th><th>単価</th><th>単位</th><th>備考</th></tr>${rowsHtml}</table>
+  <script>window.onload=()=>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
 function renderSettings(){
   const targetRow = (kind, c, i, len) => {
     const f = freqOf(kind, c);
@@ -2246,7 +2443,8 @@ function renderSettings(){
 // 単位の候補(既定の単位+過去に使った単位)
 function updateUnitList(){
   const set = new Set(DEFAULT_UNITS);
-  ['disposal','emitter','equip'].forEach(k=> S[k].list.forEach(c=>(c.items||[]).forEach(it=>{ if(it.u) set.add(it.u); })));
+  ['disposal','equip'].forEach(k=> S[k].list.forEach(c=>(c.items||[]).forEach(it=>{ if(it.u) set.add(it.u); })));
+  emitterItems.forEach(it=>{ if(it.unit) set.add(it.unit); });
   document.getElementById('unitList').innerHTML = [...set].map(u=>`<option value="${esc(u)}">`).join('');
 }
 async function toggleFreq(kind, id){
