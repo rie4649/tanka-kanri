@@ -176,6 +176,41 @@ def fetch_html(url, tries=3):
     raise RuntimeError(f"取得に失敗: {url} ({last_err})")
 
 
+def drop_bad_rows(cfg, series):
+    """サイト側の打ち間違い(未来の日付・ありえない値)の行だけを取り除く。
+    以前はこれがあると全体を取り込まなかったが、1行の間違いで更新が止まらないようにした"""
+    limit = datetime.now(JST).date() + timedelta(days=3)
+    for d in sorted(series):
+        p = series[d]
+        why = None
+        if datetime.strptime(d, "%Y-%m-%d").date() > limit:
+            why = "未来の日付"
+        elif not (cfg["min_price"] <= p <= cfg["max_price"]):
+            why = "想定範囲外の値"
+        if why:
+            print(f"⚠ {cfg['name']}: {d} = {p} は{why}なので飛ばしました(サイトの入力ミスの可能性)")
+            del series[d]
+    return series
+
+
+def header_latest(html_text):
+    """ページ上部の「銅建値242万円 … 2026年09月24日現在」から (日付, 円/t) を読む。無ければ None"""
+    text = re.sub(r"<[^>]+>", " ", html_text)
+    text = unicodedata.normalize("NFKC", text)
+    text = re.sub(r"\s+", "", text)
+    m1 = re.search(r"銅建値([\d,.]+)万円", text)
+    m2 = re.search(r"(20\d{2})年(\d{1,2})月(\d{1,2})日現在", text)
+    if not (m1 and m2):
+        return None
+    try:
+        price = int(round(float(m1.group(1).replace(",", "")) * 10000))
+        d = f"{int(m2.group(1)):04d}-{int(m2.group(2)):02d}-{int(m2.group(3)):02d}"
+        datetime.strptime(d, "%Y-%m-%d")
+    except ValueError:
+        return None
+    return d, price
+
+
 def validate(key, cfg, series):
     if len(series) < 30:
         raise RuntimeError(f"{cfg['name']}: 取れた件数が少なすぎます({len(series)}件)。ページ構成が変わったかもしれません")
@@ -226,7 +261,14 @@ def run_shouei():
     all_series = {}
     for key, cfg in PAGES.items():
         html_text = fetch_html(cfg["url"])
-        series = extract_series(html_text)
+        series = drop_bad_rows(cfg, extract_series(html_text))
+        # 推移表にまだ載っていない最新の銅建値を、ページ上部の表示から補う
+        if key == "copper":
+            hl = header_latest(html_text)
+            if hl and hl[0] not in series and cfg["min_price"] <= hl[1] <= cfg["max_price"] \
+                    and datetime.strptime(hl[0], "%Y-%m-%d").date() <= datetime.now(JST).date() + timedelta(days=3):
+                series[hl[0]] = hl[1]
+                print(f"＋ {cfg['name']}: ページ上部の表示から {hl[0]} = {hl[1]:,}円/t を追加しました")
         validate(key, cfg, series)
         all_series[key] = series
         latest = max(series)
