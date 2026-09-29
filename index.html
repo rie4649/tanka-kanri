@@ -999,7 +999,7 @@ function renderList(kind){
 }
 
 /* ===== WEBからの自動取得(鐘栄商店・東京製鐵) ===== */
-// GitHub Actionsが平日12:30と17:30にサイトを見に行き、JSONファイルを更新します。
+// GitHub Actionsが平日10:00にサイトを見に行き、JSONファイルを更新します。
 // ここは閲覧専用: Firestoreは使わず、入力・訂正もありません。
 const SHOUEI_BS_ADJ = -70; // 花村産業BS粉 = 黄銅ダライ粉 −70円
 const AUTO_SRC = {
@@ -1057,11 +1057,11 @@ function renderAuto(id, box, meta){
   if(!j){
     meta.textContent = '';
     box.innerHTML = `<div class="empty">${AUTO_LOADED[id]
-      ? `🌐 ${src.name}の自動取得データをまだ読み込めません。<br>次の自動取得(平日12:30・17:30)のあとに表示されます`
+      ? `🌐 ${src.name}の自動取得データをまだ読み込めません。<br>次の自動取得(平日10:00)のあとに表示されます`
       : '読み込み中…'}</div>`;
     return;
   }
-  meta.innerHTML = `🌐 ${j.fetched_at||''} 取得(平日12:30・17:30に自動更新・入力不要)${src.link?`　<a href="${src.link}" target="_blank" rel="noopener" style="color:#0369a1;font-weight:bold;">元のページ↗</a>`:''}`;
+  meta.innerHTML = `🌐 ${j.fetched_at||''} 取得(平日10:00に自動更新・入力不要)${src.link?`　<a href="${src.link}" target="_blank" rel="noopener" style="color:#0369a1;font-weight:bold;">元のページ↗</a>`:''}`;
   const q = document.getElementById('soubaSearch').value.trim();
   const items = autoItems(id).filter(it=>!q || it.n.includes(q));
   if(!items.length){ box.innerHTML = '<div class="empty">該当する品名がありません</div>'; return; }
