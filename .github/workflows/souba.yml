@@ -1,10 +1,9 @@
 name: 相場自動取得(鐘栄商店)
 
-# 平日の日本時間12:30と17:30に実行(UTCでは03:30と08:30)。手動実行(Run workflow)もできます
+# 平日の日本時間10:00に実行(UTCでは01:00)。手動実行(Run workflow)もできます
 on:
   schedule:
-    - cron: '30 3 * * 1-5'
-    - cron: '30 8 * * 1-5'
+    - cron: '0 1 * * 1-5'
   workflow_dispatch:
 
 permissions:
