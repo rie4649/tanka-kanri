@@ -592,19 +592,25 @@ const db = firebase.firestore();
 // 空(undefined)の項目があっても保存が止まらないようにする
 try{ db.settings({ ignoreUndefinedProperties:true, merge:true }); }catch(e){ console.warn(e); }
 /* 保存に失敗したとき:日本語の説明と元のメッセージを、閉じるまで出しておく */
-function saveErr(e){
+function saveErr(e, title){
   console.error(e);
-  const m = String((e && (e.code ? e.code+' / ' : '')) + ((e && e.message) || e));
+  title = title || '保存に失敗しました';
+  const raw = (e && e.message) || String(e);
+  // アプリが出している日本語だけのメッセージ(「同じ品名がすでにあります」など)は、そのまま短く出す
+  if(raw && !/[A-Za-z]{3,}/.test(raw)){ toast('❌ '+raw); return; }
+  const m = String((e && e.code ? e.code+' / ' : '') + raw);
   let jp = 'わからないエラーです。この画面をスクショして送ってください。';
-  if(/undefined|Unsupported field value/i.test(m)) jp = '入力データの中に空の項目があって保存できませんでした。';
+  if(/resource-exhausted|quota/i.test(m)) jp = 'Firebaseの1日の無料の上限を使い切ってしまいました。\n日本時間の夕方(16〜17時ごろ)にリセットされると、また保存できるようになります。';
+  else if(/undefined|Unsupported field value/i.test(m)) jp = '入力データの中に空の項目があって保存できませんでした。';
+  else if(/nested arrays/i.test(m)) jp = 'この会社のデータの形が古く、そのままでは保存できませんでした。';
   else if(/permission/i.test(m)) jp = '保存する権限がありません(Firebaseの設定)。';
   else if(/exceeds the maximum|too large|size/i.test(m)) jp = 'この会社のデータが大きくなりすぎて、1回で保存できませんでした。';
-  else if(/500|too many|batch/i.test(m)) jp = '一度に保存する件数が多すぎました。';
-  else if(/unavailable|offline|network|failed to fetch/i.test(m)) jp = 'インターネットにつながっていないようです。電波のよいところでもう一度押してください。';
-  else if(/not.?found|No document/i.test(m)) jp = '保存先のデータが見つかりませんでした(ほかの人が消した可能性があります)。画面を読み込み直してください。';
+  else if(/too many|batch|500/i.test(m)) jp = '一度に保存する件数が多すぎました。';
+  else if(/unavailable|offline|network|failed to fetch|deadline/i.test(m)) jp = 'インターネットにつながっていないようです。電波のよいところでもう一度押してください。';
+  else if(/not.?found|No document/i.test(m)) jp = '保存先のデータが見つかりませんでした。画面を読み込み直してください。';
   else if(/index/i.test(m)) jp = 'Firebaseの検索設定(インデックス)が足りません。';
-  toast('❌ 保存に失敗しました');
-  alert('❌ 保存に失敗しました\n\n'+jp+'\n\n――― くわしい内容(スクショして送ってください) ―――\n'+m);
+  toast('❌ '+title);
+  alert('❌ '+title+'\n\n'+jp+'\n\n――― くわしい内容(スクショして送ってください) ―――\n'+m);
 }
 
 const COL = { souba:'tankaCompanies', client:'tankaClientList', disposal:'tankaDisposalList', equip:'tankaEquipList' };
@@ -697,7 +703,7 @@ async function savePass(){
     S.passcode = v;
     document.getElementById('newPass').value='';
     toast('✅ パスワードを変更しました');
-  }catch(e){ console.error(e); toast('❌ 変更に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'変更に失敗しました'); }
 }
 
 /* ===== 共通 ===== */
@@ -1749,7 +1755,7 @@ async function saveHistEdit(){
     await loadAll();
     toast('✏️ 訂正して再計算しました');
     showHistory(kind, idx);
-  }catch(e){ console.error(e); toast('❌ 訂正に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'訂正に失敗しました'); }
 }
 async function delHist(docId, price, ts){
   const kind = HIST.kind, idx = HIST.idx;
@@ -1764,7 +1770,7 @@ async function delHist(docId, price, ts){
     await loadAll();
     toast('🗑 削除して再計算しました');
     showHistory(kind, idx);
-  }catch(e){ console.error(e); toast('❌ 削除に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'削除に失敗しました'); }
 }
 async function recalcItem(kind, targetId, itemKey){
   const target = S[kind].list.find(c=>c.id===targetId);
@@ -2077,7 +2083,7 @@ async function saveLink(){
     closeLink();
     await loadAll();
     toast('🔗 連動を設定しました');
-  }catch(e){ console.error(e); toast('❌ 連動設定に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'連動設定に失敗しました'); }
 }
 async function removeLink(){
   if(!linkEditing) return;
@@ -2097,7 +2103,7 @@ async function removeLink(){
     closeLink();
     await loadAll();
     toast('連動を解除しました');
-  }catch(e){ console.error(e); toast('❌ 解除に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'解除に失敗しました'); }
 }
 function closeLink(){ document.getElementById('linkOverlay').classList.remove('show'); linkEditing=null; }
 
@@ -2169,7 +2175,7 @@ async function backfillLinked(lkind, targetId, idx){
     S.tableCache = {};
     await loadAll();
     toast(`📥「${hk(it)}」に${desired.length}件の履歴を作成しました`);
-  }catch(e){ console.error(e); toast('❌ 反映に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'反映に失敗しました'); }
 }
 
 /* ===== メンテナンス(履歴の穴埋め+現在単価の再計算) ===== */
@@ -2222,7 +2228,7 @@ async function repairCurrent(){
     if(backfilled) parts.push(`履歴を${backfilled}件作成`);
     if(fixed) parts.push(`${fixed}品目の現在単価を修正`);
     toast(parts.length ? `✅ ${parts.join('・')}しました` : '✅ すべて正常でした(修正なし)');
-  }catch(e){ console.error(e); toast('❌ 点検に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'点検に失敗しました'); }
 }
 
 /* ===== 並び順変更 ===== */
@@ -2237,7 +2243,7 @@ async function moveTarget(kind, id, dir){
     list.forEach((c,idx2)=>{ batch.update(db.collection(COL[kind]).doc(c.id), {order: idx2}); });
     await batch.commit();
     renderChips(kind); renderSettings();
-  }catch(e){ console.error(e); toast('❌ 並び替えに失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'並び替えに失敗しました'); }
 }
 async function moveItem(kind, idx, dir){
   const sel = document.getElementById(UI[kind].sel);
@@ -2253,7 +2259,7 @@ async function moveItem(kind, idx, dir){
       tx.update(ref, {items});
     });
     await loadAll();
-  }catch(e){ console.error(e); toast('❌ 並び替えに失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'並び替えに失敗しました'); }
 }
 
 /* ===== 設定 ===== */
@@ -2338,7 +2344,7 @@ async function moveEmitterItem(id, dir){
     await batch.commit();
     it.order = b; other.order = a;
     renderEmitterAll();
-  }catch(e){ console.error(e); toast('❌ 並べ替えに失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'並べ替えに失敗しました'); }
 }
 function renderEmitterUnitOptions(){
   const sel = document.getElementById('emitUnitSel');
@@ -2471,7 +2477,7 @@ async function deleteEmitterItem(id){
     if(emitterEditId===id) emitFormClear();
     renderEmitterAll();
     toast('削除しました');
-  }catch(e){ console.error(e); toast('❌ 削除に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'削除に失敗しました'); }
 }
 async function bulkAddEmitter(){
   const lines = document.getElementById('bulkEmitterItems').value.split('\n').map(l=>l.trim()).filter(Boolean);
@@ -2496,7 +2502,7 @@ async function bulkAddEmitter(){
     document.getElementById('bulkEmitterItems').value = '';
     renderEmitterAll();
     toast(`${added}件登録しました${skipped?`(${skipped}件は空行・重複でスキップ)`:''}`);
-  }catch(e){ console.error(e); toast('❌ 一括登録に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'一括登録に失敗しました'); }
 }
 function printEmitter(){
   const list = sortedEmitterItems();
@@ -2568,7 +2574,7 @@ async function toggleFreq(kind, id){
     S.tableCache = {};
     renderSettings(); renderList(kind);
     toast(`「${c.name}」を${FREQ_LABEL[next]}に変更しました`);
-  }catch(e){ console.error(e); toast('❌ 変更に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'変更に失敗しました'); }
 }
 function renderSettingItems(kind){
   const sel = document.getElementById(UI[kind].sel);
@@ -2673,7 +2679,7 @@ async function setItemField(kind, idx, patch){
     renderList(kind);
     updateUnitList();
     return true;
-  }catch(e){ console.error(e); toast('❌ 変更に失敗: '+(e.message||e)); return false; }
+  }catch(e){ saveErr(e,'変更に失敗しました'); return false; }
 }
 async function changeUnit(kind, idx){
   const sel = document.getElementById(UI[kind].sel);
@@ -2724,7 +2730,7 @@ async function renameTarget(kind, id){
     S.tableCache = {};
     await loadAll();
     toast(`✏️「${oldName}」→「${name}」に変更しました(履歴${snap.docs.length}件も引き継ぎ)`);
-  }catch(e){ console.error(e); toast('❌ 変更に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'変更に失敗しました'); }
 }
 async function renameItem(kind, idx){
   const sel = document.getElementById(UI[kind].sel);
@@ -2794,7 +2800,7 @@ async function rekeyItem(kind, target, idx, newN, newE){
     S.tableCache = {};
     await loadAll();
     toast(`✏️「${oldKey}」→「${newKey}」に変更しました(履歴${snap.docs.length}件も引き継ぎ)`);
-  }catch(e){ console.error(e); toast('❌ 変更に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'変更に失敗しました'); }
 }
 
 async function addTarget(kind){
@@ -2808,7 +2814,7 @@ async function addTarget(kind){
     await db.collection(COL[kind]).add(doc);
     inp.value='';
     await loadAll(); toast(`「${name}」を追加しました`);
-  }catch(e){ console.error(e); toast('❌ 追加に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'追加に失敗しました'); }
 }
 async function delTarget(kind,id){
   const t = S[kind].list.find(c=>c.id===id);
@@ -2817,7 +2823,7 @@ async function delTarget(kind,id){
   try{
     await db.collection(COL[kind]).doc(id).delete();
     await loadAll(); toast('削除しました');
-  }catch(e){ console.error(e); toast('❌ 削除に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'削除に失敗しました'); }
 }
 function readUnitCost(kind){
   if(!hasUnitUI(kind)) return {u:null, c:null};
@@ -2865,7 +2871,7 @@ async function addItem(kind){
     nameInp.value=''; priceInp.value='';
     if(hasUnitUI(kind)){ document.getElementById(UI[kind].unit).value=''; if(UI[kind].cost) document.getElementById(UI[kind].cost).value='disp'; }
     await loadAll(); toast(`「${name}」を追加しました`);
-  }catch(e){ console.error(e); toast('❌ '+(e.message||'追加に失敗しました')); }
+  }catch(e){ saveErr(e,'追加に失敗しました'); }
 }
 async function bulkAdd(kind){
   const sel = document.getElementById(UI[kind].sel);
@@ -2914,7 +2920,7 @@ async function bulkAdd(kind){
     ta.value='';
     await loadAll();
     toast(`✅ ${added}件追加しました` + (skipped?`(重複${skipped}件はスキップ)`:''));
-  }catch(e){ console.error(e); toast('❌ '+(e.message||'一括登録に失敗しました')); }
+  }catch(e){ saveErr(e,'一括登録に失敗しました'); }
 }
 async function delItem(kind, idx){
   const sel = document.getElementById(UI[kind].sel);
@@ -2931,7 +2937,7 @@ async function delItem(kind, idx){
       tx.update(ref, {items});
     });
     await loadAll(); toast('削除しました');
-  }catch(e){ console.error(e); toast('❌ 削除に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e,'削除に失敗しました'); }
 }
 
 /* ===== PWA ===== */
