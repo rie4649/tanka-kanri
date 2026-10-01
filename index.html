@@ -589,6 +589,23 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+// 空(undefined)の項目があっても保存が止まらないようにする
+try{ db.settings({ ignoreUndefinedProperties:true, merge:true }); }catch(e){ console.warn(e); }
+/* 保存に失敗したとき:日本語の説明と元のメッセージを、閉じるまで出しておく */
+function saveErr(e){
+  console.error(e);
+  const m = String((e && (e.code ? e.code+' / ' : '')) + ((e && e.message) || e));
+  let jp = 'わからないエラーです。この画面をスクショして送ってください。';
+  if(/undefined|Unsupported field value/i.test(m)) jp = '入力データの中に空の項目があって保存できませんでした。';
+  else if(/permission/i.test(m)) jp = '保存する権限がありません(Firebaseの設定)。';
+  else if(/exceeds the maximum|too large|size/i.test(m)) jp = 'この会社のデータが大きくなりすぎて、1回で保存できませんでした。';
+  else if(/500|too many|batch/i.test(m)) jp = '一度に保存する件数が多すぎました。';
+  else if(/unavailable|offline|network|failed to fetch/i.test(m)) jp = 'インターネットにつながっていないようです。電波のよいところでもう一度押してください。';
+  else if(/not.?found|No document/i.test(m)) jp = '保存先のデータが見つかりませんでした(ほかの人が消した可能性があります)。画面を読み込み直してください。';
+  else if(/index/i.test(m)) jp = 'Firebaseの検索設定(インデックス)が足りません。';
+  toast('❌ 保存に失敗しました');
+  alert('❌ 保存に失敗しました\n\n'+jp+'\n\n――― くわしい内容(スクショして送ってください) ―――\n'+m);
+}
 
 const COL = { souba:'tankaCompanies', client:'tankaClientList', disposal:'tankaDisposalList', equip:'tankaEquipList' };
 const KINDS = ['souba','client','disposal','equip'];
@@ -1594,7 +1611,7 @@ async function saveInput(){
     const parts = []; if(cntSame>0) parts.push(`変動なし${cntSame}`); if(cntNone>0) parts.push(`なし${cntNone}`); if(linkedCount) parts.push(`連動${linkedCount}件も更新`);
     toast(`✅ ${fmtApply(ts, freq)}で${records.length}件記録しました${parts.length?`(${parts.join('・')})`:''}${pastDated?` ※${pastDated}件は過去日付のため現在単価は最新の記録のまま`:''}`);
   }catch(e){
-    console.error(e); toast('❌ 保存に失敗: '+(e.message||e));
+    saveErr(e);
   }
   btn.disabled = false; btn.textContent = '保存';
 }
@@ -2422,7 +2439,7 @@ async function addEmitterItem(){
     }
     emitFormClear();
     renderEmitterAll();
-  }catch(e){ console.error(e); toast('❌ 保存に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e); }
 }
 function openEmitterEdit(id){
   const it = emitterItems.find(x=>x.id===id);
@@ -2633,7 +2650,7 @@ async function savePriceEdit(){
     S.tableCache = {};
     await loadAll();
     toast(`💰 ${hk(it)}: ${fmtApply(ts, freq)} ${np==null?'なし':fmtNum(np)+'円'}で記録しました`);
-  }catch(e){ console.error(e); toast('❌ 保存に失敗: '+(e.message||e)); }
+  }catch(e){ saveErr(e); }
 }
 
 // 品目の項目(単位・費目・固定など)を書き換える。値がnullの項目は削除
