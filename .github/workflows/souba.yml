@@ -1,10 +1,12 @@
 name: 相場自動取得(鐘栄商店)
 
-# 毎日(土日も)日本時間10:00と17:00に実行(UTCでは01:00と08:00)。
-# 東京製鐵は土曜に価格表を出すことがあるため、土日も見に行きます。手動実行(Run workflow)もできます
+# 毎日(土日も)日本時間 9:05〜18:05 に1時間ごとに実行(UTCでは0:05〜9:05)。
+# サイトが昼に更新されても、1時間ほどでアプリに反映されます。
+# 東京製鐵は土曜に価格表を出すことがあるため、土日も見に行きます。手動実行(Run workflow)もできます。
+# ※公開リポジトリなのでGitHub Actionsは無料です。値が変わらない回は確認結果(souba-status.json)だけ更新します
 on:
   schedule:
-    - cron: '0 1,8 * * *'
+    - cron: '5 0-9 * * *'
   workflow_dispatch:
 
 permissions:
@@ -31,14 +33,17 @@ jobs:
       - name: 鐘栄商店・東京製鐵から相場を取得
         run: python fetch_souba.py
 
+      # 取得に失敗した回も、取れた分と「失敗した」という記録は保存する(if: always())
       - name: 変化があればコミット
+        if: always()
         run: |
           git config user.name "souba-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add souba-shouei.json souba-tokyotetsu.json
+          git add souba-shouei.json souba-tokyotetsu.json souba-status.json
           if git diff --cached --quiet; then
             echo "変更なし"
           else
-            git commit -m "相場データ更新($(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M'))"
+            git commit -m "相場データ確認($(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M'))"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
             git push
           fi
