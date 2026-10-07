@@ -532,7 +532,7 @@
       <option value="pct">%(連動元の◯%。例: 電気銅建値の58%)</option>
     </select></div>
     <div class="field"><label id="linkAdjLabel">調整額(円)マイナスも入力できます(例: -70)</label><input id="linkAdj" type="number" inputmode="decimal" step="any" placeholder="0"></div>
-    <div class="field"><label>丸め方(計算結果を四捨五入する単位)</label>
+    <div class="field"><label>丸め方(計算結果をそろえる単位)</label>
     <select id="linkRoundUnit" onchange="updateLinkPreview()">
       <option value="0">そのまま(丸めない)</option>
       <option value="0.5">0.5円単位(例: 35.3 → 35.5)</option>
@@ -542,6 +542,12 @@
       <option value="50">50円単位</option>
       <option value="100">100円単位</option>
       <option value="500">500円単位(例: 23,700 → 23,500)</option>
+    </select></div>
+    <div class="field" id="linkRoundModeRow"><label>端数の扱い</label>
+    <select id="linkRoundMode" onchange="updateLinkPreview()">
+      <option value="round">四捨五入(例: 10円単位で 1,935 → 1,940 / 1,934 → 1,930)</option>
+      <option value="ceil">切り上げ(例: 10円単位で 1,931 → 1,940)</option>
+      <option value="floor">切り捨て(例: 10円単位で 1,939 → 1,930)</option>
     </select></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="linkManual" style="width:20px;height:20px;" onchange="toggleLinkBase();updateLinkPreview()">自動更新しない(相場の基準日を選んで計算する方式。Astemoのような月頭の相場から割り出す取引先向け)</label></div>
     <div class="field" id="linkBaseRow" style="display:none"><label>📅 基準日(この日の相場の値で計算します)</label><input type="date" id="linkBaseDate" onchange="updateLinkPreview()"></div>
@@ -741,11 +747,16 @@ function calcLinked(basePrice, link){
   const v = (link.calc === 'pct') ? basePrice * (link.adj||0) / 100 : basePrice + (link.adj||0);
   const unit = link.roundUnit != null ? link.roundUnit : (link.round ? 1 : 0);
   if(!unit) return round2(v);
-  return round2(Math.round(v / unit) * unit);
+  // 小数の誤差(例: 1930.0000001)で切り上げ・切り捨てが1単位ずれないよう、先に細かく丸めてから計算
+  const q = Math.round((v / unit) * 1e6) / 1e6;
+  const mode = link.roundMode || 'round';   // 既存の連動は四捨五入のまま
+  const n = mode === 'ceil' ? Math.ceil(q) : (mode === 'floor' ? Math.floor(q) : Math.round(q));
+  return round2(n * unit);
 }
+const ROUND_MODE_TXT = { round:'四捨五入', ceil:'切り上げ', floor:'切り捨て' };
 function roundUnitTxt(link){
   const unit = link.roundUnit != null ? link.roundUnit : (link.round ? 1 : 0);
-  return unit ? `丸め${unit}円` : '';
+  return unit ? `${unit}円単位・${ROUND_MODE_TXT[link.roundMode||'round']}` : '';
 }
 function freqOf(kind, c){ if(kind==='equip') return 'adhoc'; return c.freq || (kind==='client' ? 'monthly' : 'adhoc'); }
 function fmtApply(ts, freq){
@@ -1989,6 +2000,7 @@ function openLink(kind, idx){
   if(it.link) document.getElementById('linkItemSel').value = it.link.item;
   document.getElementById('linkAdj').value = it.link ? (it.link.adj||0) : '';
   document.getElementById('linkRoundUnit').value = it.link ? String(it.link.roundUnit != null ? it.link.roundUnit : (it.link.round ? 1 : 0)) : "0";
+  document.getElementById('linkRoundMode').value = (it.link && it.link.roundMode) || 'round';
   document.getElementById('linkCalc').value = (it.link && it.link.calc === 'pct') ? 'pct' : 'add';
   updateAdjLabel();
   document.getElementById('linkManual').checked = !!(it.link && it.link.mode==='manual');
@@ -2037,6 +2049,8 @@ function updateLinkPreview(){
   const adj = parseFloat(document.getElementById('linkAdj').value)||0;
   const src = sk==='auto' ? autoSrcItem(cid, itemName) : S[sk].list.find(c=>c.id===cid)?.items.find(i=>hk(i)===itemName);
   const unit = parseFloat(document.getElementById('linkRoundUnit').value)||0;
+  const roundMode = document.getElementById('linkRoundMode').value;
+  document.getElementById('linkRoundModeRow').style.display = unit ? '' : 'none'; // 丸めない時は端数の扱いは不要
   const calc = document.getElementById('linkCalc').value;
   const adjLabel = v => calc==='pct' ? `×${fmtNum(v)}%` : (sk==='disposal' ? `+ 運搬 ${fmtNum(v)}円` : `${v>=0?'+':''}${fmtNum(v)}円`);
   const manual = document.getElementById('linkManual').checked;
@@ -2046,11 +2060,11 @@ function updateLinkPreview(){
     pv.textContent = '基準日の相場を取得中…';
     getBasePrice(document.getElementById('linkCompanySel').value, document.getElementById('linkItemSel').value, baseDv, sk).then(base=>{
       if(base==null){ pv.textContent = `⚠️ ${baseDv.replace(/-/g,'/')}以前の相場記録がありません`; return; }
-      pv.textContent = `基準日${baseDv.replace(/-/g,'/')}の計算結果: ${fmtNum(base.price)}円 ${adjLabel(adj)} = ${fmtNum(calcLinked(base.price, {adj, roundUnit:unit, calc}))}円(相場の適用日: ${fmtDate(base.ts)})`;
+      pv.textContent = `基準日${baseDv.replace(/-/g,'/')}の計算結果: ${fmtNum(base.price)}円 ${adjLabel(adj)} = ${fmtNum(calcLinked(base.price, {adj, roundUnit:unit, roundMode, calc}))}円(相場の適用日: ${fmtDate(base.ts)})`;
     });
     return;
   }
-  document.getElementById('linkPreview').textContent = (src && src.p!=null) ? `現在の計算結果: ${sk==='disposal'?'処分 ':''}${fmtNum(src.p)}円 ${adjLabel(adj)} = ${fmtNum(calcLinked(src.p, {adj, roundUnit:unit, calc}))}円(適用日: ${src.t?fmtDate(src.t):'ー'})` : '連動元にまだ単価が入っていません(連動元の単価を保存すると自動計算されます)';
+  document.getElementById('linkPreview').textContent = (src && src.p!=null) ? `現在の計算結果: ${sk==='disposal'?'処分 ':''}${fmtNum(src.p)}円 ${adjLabel(adj)} = ${fmtNum(calcLinked(src.p, {adj, roundUnit:unit, roundMode, calc}))}円(適用日: ${src.t?fmtDate(src.t):'ー'})` : '連動元にまだ単価が入っていません(連動元の単価を保存すると自動計算されます)';
 }
 document.getElementById('linkItemSel').addEventListener('change', updateLinkPreview);
 document.getElementById('linkAdj').addEventListener('input', updateLinkPreview);
@@ -2063,6 +2077,7 @@ async function saveLink(){
   const itemName = document.getElementById('linkItemSel').value;
   const adj = parseFloat(document.getElementById('linkAdj').value)||0;
   const rnd = parseFloat(document.getElementById('linkRoundUnit').value)||0;
+  const rndMode = document.getElementById('linkRoundMode').value || 'round';
   const calcMode = document.getElementById('linkCalc').value;
   const manual = document.getElementById('linkManual').checked;
   if(!cid || !itemName){ toast('連動元を選んでください'); return; }
@@ -2095,13 +2110,13 @@ async function saveLink(){
       const items = [...(data.items||[])];
       if(!items[idx]) throw new Error('品目が見つかりません');
       const it = items[idx];
-      let nit = {...it, link:{cid, item:itemName, adj, roundUnit:rnd, calc:calcMode, mode: manual?'manual':'auto', src:sk}};
+      let nit = {...it, link:{cid, item:itemName, adj, roundUnit:rnd, roundMode:rndMode, calc:calcMode, mode: manual?'manual':'auto', src:sk}};
       const src = manual
         ? (baseVal!=null ? {p:baseVal, t:applyTs} : null)
         : (sk==='auto' ? autoSrcItem(cid, itemName) : S[sk].list.find(c=>c.id===cid)?.items.find(i=>hk(i)===itemName));
       let hist = null;
       if(src && src.p!=null){
-        const np = calcLinked(src.p, {adj, roundUnit:rnd, calc:calcMode});
+        const np = calcLinked(src.p, {adj, roundUnit:rnd, roundMode:rndMode, calc:calcMode});
         if(np !== it.p){
           const useTs = manual ? applyTs : now;
           nit = {...nit, pp:(it.p!=null?it.p:it.pp??null), p:np, t:useTs};
