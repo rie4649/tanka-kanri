@@ -548,7 +548,8 @@
       <option value="round">四捨五入(例: 10円単位で 1,935 → 1,940 / 1,934 → 1,930)</option>
       <option value="ceil">切り上げ(例: 10円単位で 1,931 → 1,940)</option>
       <option value="floor">切り捨て(例: 10円単位で 1,939 → 1,930)</option>
-    </select></div>
+    </select>
+    <div id="linkRoundTable" style="margin-top:8px;"></div></div>
     <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="linkManual" style="width:20px;height:20px;" onchange="toggleLinkBase();updateLinkPreview()">自動更新しない(相場の基準日を選んで計算する方式。Astemoのような月頭の相場から割り出す取引先向け)</label></div>
     <div class="field" id="linkBaseRow" style="display:none"><label>📅 基準日(この日の相場の値で計算します)</label><input type="date" id="linkBaseDate" onchange="updateLinkPreview()"></div>
     <div class="note" id="linkPreview"></div>
@@ -2042,6 +2043,21 @@ function fillLinkItems(){
   document.getElementById('linkItemSel').innerHTML = (comp?.items||[]).map(it=>`<option value="${esc(hk(it))}">${esc(hk(it))}${it.p!=null?`(${fmtNum(it.p)}円${esc(unitTxt(it))})`:''}</option>`).join('') || '<option value="">品名がありません</option>';
   updateLinkPreview();
 }
+// 端数の扱いの早見表: 丸める前の金額が3つの扱いでいくらになるかを並べる(選択中の扱いを強調)
+function drawRoundTable(raw, unit, mode, isExample){
+  const box = document.getElementById('linkRoundTable');
+  if(!box) return;
+  if(!unit){ box.innerHTML = ''; return; }
+  const v = (raw==null) ? 1939.7 : raw;
+  const rows = ['round','ceil','floor'].map(m=>{
+    const r = calcLinked(v, {adj:0, roundUnit:unit, roundMode:m});
+    const on = m===mode;
+    return `<tr style="${on?'background:#e6f4ea;font-weight:bold;':''}"><td style="padding:6px 10px;border-top:1px solid #e5e7eb;">${on?'▶ ':''}${ROUND_MODE_TXT[m]}</td><td style="padding:6px 10px;border-top:1px solid #e5e7eb;text-align:right;">${fmtNum(r)}円</td></tr>`;
+  }).join('');
+  box.innerHTML = `<div style="border:1px solid #d1d5db;border-radius:10px;overflow:hidden;font-size:14px;">
+    <div style="background:#f3f4f6;padding:6px 10px;font-weight:bold;">📋 早見表(${fmtNum(unit)}円単位)　丸める前 ${fmtNum(round2(v))}円${(raw==null||isExample)?'<span style="font-weight:normal;color:#6b7280;">(例)</span>':''}</div>
+    <table style="width:100%;border-collapse:collapse;">${rows}</table></div>`;
+}
 function updateLinkPreview(){
   const sk = curSrcKind();
   const cid = document.getElementById('linkCompanySel').value;
@@ -2055,12 +2071,15 @@ function updateLinkPreview(){
   const adjLabel = v => calc==='pct' ? `×${fmtNum(v)}%` : (sk==='disposal' ? `+ 運搬 ${fmtNum(v)}円` : `${v>=0?'+':''}${fmtNum(v)}円`);
   const manual = document.getElementById('linkManual').checked;
   const baseDv = document.getElementById('linkBaseDate').value;
+  // 早見表はまず今の連動元の値で出す(基準日方式は相場を読み込んだあとに描き直す)
+  drawRoundTable((src && src.p!=null) ? calcLinked(src.p, {adj, roundUnit:0, calc}) : null, unit, roundMode);
   if(manual && baseDv){
     const pv = document.getElementById('linkPreview');
     pv.textContent = '基準日の相場を取得中…';
     getBasePrice(document.getElementById('linkCompanySel').value, document.getElementById('linkItemSel').value, baseDv, sk).then(base=>{
       if(base==null){ pv.textContent = `⚠️ ${baseDv.replace(/-/g,'/')}以前の相場記録がありません`; return; }
       pv.textContent = `基準日${baseDv.replace(/-/g,'/')}の計算結果: ${fmtNum(base.price)}円 ${adjLabel(adj)} = ${fmtNum(calcLinked(base.price, {adj, roundUnit:unit, roundMode, calc}))}円(相場の適用日: ${fmtDate(base.ts)})`;
+      drawRoundTable(calcLinked(base.price, {adj, roundUnit:0, calc}), unit, roundMode);
     });
     return;
   }
