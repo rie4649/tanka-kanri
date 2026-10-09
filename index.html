@@ -1034,7 +1034,7 @@ function renderList(kind){
 }
 
 /* ===== WEBからの自動取得(鐘栄商店・東京製鐵) ===== */
-// GitHub Actionsが毎日9時〜18時に1時間ごとサイトを見に行き、JSONファイルを更新します。
+// GitHub Actionsが平日9時〜18時に1時間ごとサイトを見に行き、JSONファイルを更新します。
 // souba-status.json に毎回の確認時刻と成功/失敗が入ります(最終確認・取得失敗の表示用)。
 // ここは閲覧専用: Firestoreは使わず、入力・訂正もありません。
 const SHOUEI_BS_ADJ = -70; // 花村産業BS粉 = 黄銅ダライ粉 −70円
@@ -1073,7 +1073,7 @@ function autoMetaHtml(id, j){
   const st = AUTO_STATUS && AUTO_STATUS.sources ? AUTO_STATUS.sources[id] : null;
   const changed = `値の更新 ${autoMd(j.fetched_at)}`;
   if(!st || !AUTO_STATUS.checked_at){ // 新しい仕組みの初回実行前
-    return `🌐 ${changed}(毎日9〜18時に毎時確認・入力不要)`;
+    return `🌐 ${changed}(平日9〜18時に毎時確認・入力不要)`;
   }
   const checked = AUTO_STATUS.checked_at;
   if(!st.ok){
@@ -1081,12 +1081,16 @@ function autoMetaHtml(id, j){
       + `(最後に取れたのは ${st.last_ok?autoMd(st.last_ok):'不明'}・表示は前回までの値です) ・ ${changed}`;
   }
   // 確認が長く止まっていないか(夜18時〜朝9時の間は確認しないので、20時間を超えたら警告)
+  // 土日は自動取得を止めているので、土日と月曜の午前中は金曜夕方からの空き(68時間)まで許容
   const t = new Date(checked.replace(' ', 'T') + ':00+09:00').getTime();
   const hrs = (Date.now() - t) / 3600000;
-  if(hrs > 20){
+  const nowJ = new Date(Date.now() + 9*3600000); // 日本時間で曜日・時刻を判定
+  const dowJ = nowJ.getUTCDay(), hJ = nowJ.getUTCHours();
+  const limitHrs = (dowJ === 0 || dowJ === 6 || (dowJ === 1 && hJ < 12)) ? 68 : 20;
+  if(hrs > limitHrs){
     return `<span style="color:#b91c1c;font-weight:bold;">⚠ 最終確認 ${autoMd(checked)}(${Math.floor(hrs)}時間前)・自動取得が止まっているかもしれません</span> ・ ${changed}`;
   }
-  return `🌐 最終確認 ${autoMd(checked)} ✅ ・ ${changed}(毎日9〜18時に毎時確認・入力不要)`;
+  return `🌐 最終確認 ${autoMd(checked)} ✅ ・ ${changed}(平日9〜18時に毎時確認・入力不要)`;
 }
 
 function shoueiDate(dstr){ const [y,m,d] = dstr.split('-').map(Number); return `${y}/${m}/${d}`; }
@@ -1124,7 +1128,7 @@ function renderAuto(id, box, meta){
   if(!j){
     meta.textContent = '';
     box.innerHTML = `<div class="empty">${AUTO_LOADED[id]
-      ? `🌐 ${src.name}の自動取得データをまだ読み込めません。<br>次の自動取得(毎日9〜18時の毎時)のあとに表示されます`
+      ? `🌐 ${src.name}の自動取得データをまだ読み込めません。<br>次の自動取得(平日9〜18時の毎時)のあとに表示されます`
       : '読み込み中…'}</div>`;
     return;
   }
