@@ -260,7 +260,7 @@
 <div id="lock">
   <div class="lockCard" id="lockCard">
     <div class="lockLogo">💹</div>
-    <h1>単価管理</h1>
+    <h1>単価管理 <small style="font-size:11px;opacity:.6;font-weight:normal;margin-left:6px;">版 11/19-1</small></h1>
     <div class="lockSub">SEKINE PRICE BOARD</div>
     <div id="lockMsg">⚠️ パスワードを3回間違えるとロックがかかります</div>
     <input id="pw" type="password" placeholder="パスワード" onkeydown="if(event.key==='Enter')unlock()">
@@ -765,6 +765,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://rie4649.github.io/sekine-store/sekine-auth.js?v=1"></script>
 <script>
 /* ================================================================
    Firebaseの接続先(2026-10 単価管理専用の保存場所に引っ越し)
