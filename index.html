@@ -184,6 +184,23 @@
 
   /* 📎 改定文書・添付資料 */
   .docBarBtn { width:100%; margin-bottom:10px; padding:10px 12px; font-size:14px; font-weight:bold; border-radius:10px; background:#fffbeb; border:1.5px solid #fcd34d; color:#92400e; text-align:left; }
+  .dispBar { display:flex; gap:8px; margin-bottom:10px; }
+  .dispBar button { flex:1; margin:0; }
+  .accBtn { padding:10px 12px; font-size:14px; font-weight:bold; border-radius:10px; background:#ecfdf5; border:1.5px solid #6ee7b7; color:#065f46; text-align:left; }
+  .accTbl { width:100%; border-collapse:collapse; font-size:14px; margin-top:6px; }
+  .accTbl th { background:#f1f5f2; font-size:13px; padding:8px 6px; border:1px solid #d6dfd9; }
+  .accTbl td { padding:8px 6px; border:1px solid #d6dfd9; vertical-align:middle; }
+  .accTbl td.mk { text-align:center; font-size:22px; font-weight:bold; width:56px; }
+  .accTbl .ok { color:#15803d; } .accTbl .ng { color:#dc2626; }
+  .accTbl tr.onlyF td { background:#fffbeb; }
+  .accTbl td.nm { font-weight:bold; }
+  .accTbl td.nt { font-size:12.5px; color:#374151; }
+  .accEdRow { border:1px solid #d6dfd9; border-radius:10px; padding:8px; margin-bottom:8px; background:#fff; }
+  .accEdRow input { width:100%; box-sizing:border-box; padding:7px 8px; font-size:14px; border:1px solid #cbd5d0; border-radius:8px; margin-bottom:6px; }
+  .accEdBtns { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .accTg { padding:6px 10px; border-radius:8px; font-weight:bold; font-size:14px; border:1.5px solid #cbd5d0; background:#fff; }
+  .accTg.ok { color:#15803d; border-color:#86efac; background:#f0fdf4; }
+  .accTg.ng { color:#dc2626; border-color:#fca5a5; background:#fef2f2; }
   .docRow { padding:10px; background:#fafdfb; border:1px solid #e3ede5; border-radius:10px; margin-bottom:7px; }
   .docInfo { font-size:14px; line-height:1.5; word-break:break-all; }
 
@@ -260,7 +277,7 @@
 <div id="lock">
   <div class="lockCard" id="lockCard">
     <div class="lockLogo">💹</div>
-    <h1>単価管理 <small style="font-size:11px;opacity:.6;font-weight:normal;margin-left:6px;">版 11/19-1</small></h1>
+    <h1>単価管理 <small style="font-size:11px;opacity:.6;font-weight:normal;margin-left:6px;">版 11/24-1</small></h1>
     <div class="lockSub">SEKINE PRICE BOARD</div>
     <div id="lockMsg">⚠️ パスワードを3回間違えるとロックがかかります</div>
     <input id="pw" type="password" placeholder="パスワード" onkeydown="if(event.key==='Enter')unlock()">
@@ -341,6 +358,7 @@
   </div>
   <div class="dpane act" id="dpane-disposal">
     <div class="chips" id="disposalChips"></div>
+    <div id="disposalDocBar"></div>
     <div class="toolRow">
       <input class="searchBox" id="disposalSearch" placeholder="🔍 品名で検索" oninput="renderList('disposal')">
       <button class="inputBtn" onclick="openInput('disposal')">✏️ 入力</button>
@@ -696,6 +714,14 @@
     <button class="closeBtn" id="docCancelBtn" style="display:none" onclick="docFormClear()">修正をやめる</button>
     <div id="docList" style="margin-top:14px"></div>
     <button class="closeBtn" onclick="closeDocs()">閉じる</button>
+  </div>
+</div>
+
+<!-- ♻️ 受入れ品目(処分先ごと) -->
+<div class="overlay" id="accOverlay" onclick="if(event.target===this)closeAccept()">
+  <div class="sheet">
+    <h3 id="accTitle">♻️ 受入れ品目</h3>
+    <div id="accBody"></div>
   </div>
 </div>
 
@@ -1327,6 +1353,7 @@ function renderList(kind){
   const box = document.getElementById(kind+'List');
   const meta = document.getElementById(kind+'Meta');
   if(kind==='souba') renderDocBar();
+  if(kind==='disposal') renderDispBar();
   if(kind==='souba' && AUTO_SRC[st.currentId]){ renderAuto(st.currentId, box, meta); return; }
   const target = st.list.find(c=>c.id===st.currentId);
   if(!target){ box.innerHTML=`<div class="empty">${MIGRATED?`まず設定タブの「${KIND_LABEL[kind]}」から登録してください`:'上の「📦 データを引っ越す」を押すと、今までのデータが出てきます'}</div>`; meta.textContent=''; return; }
@@ -1840,13 +1867,165 @@ const DOC_CHUNK = 700000;          // 1件の大きさ(文字数)。Firebaseの1
 let tankaDocs = [];
 let docEditId = null;
 const DOC_BLOB_URL = {};           // 一度開いた書類は、再読込まで端末の中のものを使う
+/* ===== ♻️ 受入れ品目(処分先ごと:バラ/フレコンの可否・備考) =====
+   処分先のデータ(tankaDisposalList の各会社)に accept:[{n,b,f,note}] / acceptMemo / acceptUpdated を持たせる */
+const ACC_PRESET_FRONTIER = {
+  memo: '坂城工場。お持ち込み前に、品目と荷姿(バラ・フレコン)を確認。受入れ不可品目・注意事項は案内の裏面を確認',
+  rows: [
+    {n:'がれき類(外壁材)', b:true,  f:true, note:'窯業系サイディング・ALC・ケイカル板は要分析'},
+    {n:'がれき類(土壁)',   b:false, f:true, note:'フレコンバック入りが受入れ条件'},
+    {n:'ガラスくず',       b:false, f:true, note:'フレコンバック入りが受入れ条件'},
+    {n:'陶磁器くず',       b:false, f:true, note:'フレコンバック入りが受入れ条件'},
+    {n:'グラスウール等',   b:true,  f:true, note:'ロックウールは要検査'},
+    {n:'廃プラ',           b:true,  f:true, note:''},
+    {n:'廃プラ(塩ビパイプ)', b:true, f:true, note:'通常の廃プラに混入した場合、処理代金が上がる可能性あり'},
+    {n:'廃プラ(FRP)',      b:true,  f:true, note:'通常の廃プラに混入した場合、処理代金が上がる可能性あり'},
+    {n:'木くず',           b:true,  f:true, note:'生木類は別にすること(処理金額が異なるため)'},
+    {n:'石膏ボード',       b:true,  f:true, note:'新建材が対象(紙付きはOK)'},
+    {n:'モルタルボード',   b:true,  f:true, note:'モルタル等異物付着及びビニールクロス付・水濡れ品が対象'}
+  ]
+};
+let ACC = { edit:false, rows:[], memo:'' };
+function accTarget(){ return S.disposal.list.find(c=>c.id===S.disposal.currentId); }
+function renderDispBar(){
+  const box = document.getElementById('disposalDocBar');
+  if(!box) return;
+  const t = accTarget();
+  if(!t){ box.innerHTML=''; return; }
+  const na = (t.accept||[]).length;
+  const nd = tankaDocs.filter(d=>d.cid===t.id).length;
+  box.innerHTML = `<div class="dispBar">
+    <button class="accBtn" onclick="openAccept()">♻️ 受入れ品目(${na?na+'品目':'未登録'})</button>
+    <button class="docBarBtn" onclick="openDocs('disposal')">📎 案内・添付資料(${nd}件)</button>
+  </div>`;
+}
+function openAccept(){
+  const t = accTarget();
+  if(!t){ toast('先に処分先を選んでください'); return; }
+  ACC.edit = false;
+  renderAccept();
+  document.getElementById('accOverlay').classList.add('show');
+}
+function closeAccept(){
+  if(ACC.edit && !confirm('編集中の内容は保存されません。閉じますか?')) return;
+  ACC.edit = false;
+  document.getElementById('accOverlay').classList.remove('show');
+}
+function accMark(v){ return v ? '<span class="ok">○</span>' : '<span class="ng">×</span>'; }
+function renderAccept(){
+  const t = accTarget(); if(!t) return;
+  document.getElementById('accTitle').textContent = `♻️ 受入れ品目:${t.name}`;
+  const body = document.getElementById('accBody');
+  if(ACC.edit){ renderAcceptEdit(body, t); return; }
+  const rows = t.accept||[];
+  const q = (document.getElementById('accSearch')?.value||'').trim();
+  let html = '';
+  if(t.acceptMemo) html += `<div class="note">${esc(t.acceptMemo)}</div>`;
+  if(!rows.length){
+    html += `<div class="empty">まだ登録がありません。下の「✏️ 編集」から品目を入れてください</div>`;
+  }else{
+    html += `<input class="searchBox" id="accSearch" style="width:100%;margin-bottom:6px" placeholder="🔍 品目・備考で検索" value="${esc(q)}" oninput="renderAcceptTable()">`;
+    html += `<div class="note">凡例:<span style="color:#15803d;font-weight:bold">○ 受入れ可</span> / <span style="color:#dc2626;font-weight:bold">× 受入れ不可</span>　黄色の行は<b>フレコンのみ</b>受入れ可</div>`;
+    html += `<div id="accTblBox"></div>`;
+    if(t.acceptUpdated) html += `<div class="meta">最終更新: ${fmtDate(t.acceptUpdated)}</div>`;
+  }
+  html += `<button class="primaryBtn" onclick="startAcceptEdit()">✏️ 編集</button>`;
+  html += `<button class="closeBtn" onclick="closeAccept()">閉じる</button>`;
+  body.innerHTML = html;
+  if(rows.length) renderAcceptTable();
+}
+function renderAcceptTable(){
+  const t = accTarget(); if(!t) return;
+  const box = document.getElementById('accTblBox'); if(!box) return;
+  const q = (document.getElementById('accSearch')?.value||'').trim();
+  const rows = (t.accept||[]).filter(r=>!q || (r.n||'').includes(q) || (r.note||'').includes(q));
+  if(!rows.length){ box.innerHTML = '<div class="empty">見つかりません</div>'; return; }
+  box.innerHTML = `<table class="accTbl"><thead><tr><th>品目</th><th>バラ</th><th>フレコン</th><th>備考</th></tr></thead><tbody>` +
+    rows.map(r=>`<tr class="${!r.b&&r.f?'onlyF':''}"><td class="nm">${esc(r.n||'')}</td><td class="mk">${accMark(r.b)}</td><td class="mk">${accMark(r.f)}</td><td class="nt">${r.note?esc(r.note):'—'}</td></tr>`).join('') +
+    `</tbody></table>`;
+}
+function startAcceptEdit(){
+  const t = accTarget(); if(!t) return;
+  ACC.edit = true;
+  ACC.rows = (t.accept||[]).map(r=>({n:r.n||'', b:!!r.b, f:!!r.f, note:r.note||''}));
+  ACC.memo = t.acceptMemo||'';
+  renderAccept();
+}
+function accSync(){
+  document.querySelectorAll('#accBody .accEdRow').forEach((el,i)=>{
+    if(!ACC.rows[i]) return;
+    ACC.rows[i].n = el.querySelector('.accN').value;
+    ACC.rows[i].note = el.querySelector('.accNote').value;
+  });
+  const m = document.getElementById('accMemo'); if(m) ACC.memo = m.value;
+}
+function renderAcceptEdit(body, t){
+  let html = `<div class="note">品目ごとに「バラ」「フレコン」を押すと ○ と × が切り替わります。▲▼で並び順、🗑で削除。最後に「保存」を押してください。</div>`;
+  html += `<div class="field"><label>メモ(工場名・注意事項など。任意)</label><input id="accMemo" value="${esc(ACC.memo)}" placeholder="例: 坂城工場。受入れ不可品目・注意事項は裏面を確認"></div>`;
+  if(!ACC.rows.length && /フロンティア/.test(t.name||'')){
+    html += `<button class="docBarBtn" onclick="accLoadPreset()">📥 坂城工場の案内(11品目)をまとめて入れる</button>`;
+  }
+  html += ACC.rows.map((r,i)=>`<div class="accEdRow">
+    <input class="accN" value="${esc(r.n)}" placeholder="品目(例: 木くず)">
+    <input class="accNote" value="${esc(r.note)}" placeholder="備考(任意)">
+    <div class="accEdBtns">
+      <button class="accTg ${r.b?'ok':'ng'}" onclick="accToggle(${i},'b')">バラ ${r.b?'○':'×'}</button>
+      <button class="accTg ${r.f?'ok':'ng'}" onclick="accToggle(${i},'f')">フレコン ${r.f?'○':'×'}</button>
+      <span style="flex:1"></span>
+      <button class="miniBtn" onclick="accMove(${i},-1)" ${i===0?'disabled':''}>▲</button>
+      <button class="miniBtn" onclick="accMove(${i},1)" ${i===ACC.rows.length-1?'disabled':''}>▼</button>
+      <button class="miniBtn" onclick="accDel(${i})">🗑</button>
+    </div>
+  </div>`).join('');
+  html += `<button class="toolBtn" style="width:100%;margin:4px 0 10px;padding:11px;" onclick="accAdd()">＋ 品目を追加</button>`;
+  html += `<button class="primaryBtn" id="accSaveBtn" onclick="saveAccept()">保存</button>`;
+  html += `<button class="closeBtn" onclick="cancelAcceptEdit()">編集をやめる</button>`;
+  body.innerHTML = html;
+}
+function accToggle(i,k){ accSync(); ACC.rows[i][k] = !ACC.rows[i][k]; renderAccept(); }
+function accMove(i,d){ accSync(); const j=i+d; if(j<0||j>=ACC.rows.length) return; [ACC.rows[i],ACC.rows[j]]=[ACC.rows[j],ACC.rows[i]]; renderAccept(); }
+function accDel(i){ accSync(); if(!confirm(`「${ACC.rows[i].n||'(名前なし)'}」を消しますか?`)) return; ACC.rows.splice(i,1); renderAccept(); }
+function accAdd(){
+  accSync(); ACC.rows.push({n:'', b:true, f:true, note:''}); renderAccept();
+  const els = document.querySelectorAll('#accBody .accN'); if(els.length) els[els.length-1].focus();
+}
+function accLoadPreset(){
+  accSync();
+  ACC.rows = ACC_PRESET_FRONTIER.rows.map(r=>({...r}));
+  if(!ACC.memo) ACC.memo = ACC_PRESET_FRONTIER.memo;
+  renderAccept();
+  toast('案内の内容を入れました。確認して「保存」を押してください');
+}
+function cancelAcceptEdit(){ ACC.edit = false; renderAccept(); }
+async function saveAccept(){
+  const t = accTarget(); if(!t) return;
+  accSync();
+  const rows = ACC.rows.map(r=>({n:r.n.trim(), b:!!r.b, f:!!r.f, note:r.note.trim()})).filter(r=>r.n);
+  const memo = (ACC.memo||'').trim();
+  const btn = document.getElementById('accSaveBtn'); if(btn){ btn.disabled = true; btn.textContent = '保存中…'; }
+  try{
+    const now = Date.now();
+    await db.collection(COL.disposal).doc(t.id).update({accept: rows, acceptMemo: memo, acceptUpdated: now});
+    t.accept = rows; t.acceptMemo = memo; t.acceptUpdated = now;
+    ACC.edit = false;
+    renderAccept(); renderDispBar();
+    toast('✅ 受入れ品目を保存しました');
+  }catch(e){
+    console.error(e);
+    toast('❌ 保存に失敗: '+(e.code||e.message||e));
+    if(btn){ btn.disabled = false; btn.textContent = '保存'; }
+  }
+}
+
+let DOC_KIND = 'souba';           // 添付資料をどのタブで開いているか(相場 / 処分先)
 function docTargetName(cid){
-  if(AUTO_SRC[cid]) return AUTO_SRC[cid].name;
-  const c = S.souba.list.find(x=>x.id===cid);
+  if(DOC_KIND==='souba' && AUTO_SRC[cid]) return AUTO_SRC[cid].name;
+  const c = S[DOC_KIND].list.find(x=>x.id===cid);
   return c ? c.name : '';
 }
 function fmtSize(b){ return b>=1024*1024 ? `${(b/1024/1024).toFixed(1)}MB` : `${Math.max(1,Math.round(b/1024))}KB`; }
 function renderDocBar(){
+  renderDispBar();
   const box = document.getElementById('soubaDocBar');
   if(!box) return;
   const cid = S.souba.currentId;
@@ -1854,11 +2033,12 @@ function renderDocBar(){
   const n = tankaDocs.filter(d=>d.cid===cid).length;
   box.innerHTML = `<button class="docBarBtn" onclick="openDocs()">📎 改定文書・添付資料(${n}件)${n?'':'　— 単価改定のお願いなどのPDFを入れられます'}</button>`;
 }
-function openDocs(){
-  const cid = S.souba.currentId;
+function openDocs(kind){
+  DOC_KIND = kind || 'souba';
+  const cid = S[DOC_KIND].currentId;
   if(!cid){ toast('先に会社を選んでください'); return; }
   docFormClear();
-  document.getElementById('docTitleH').textContent = `📎 改定文書:${docTargetName(cid)}`;
+  document.getElementById('docTitleH').textContent = `📎 ${DOC_KIND==='disposal'?'案内・添付資料':'改定文書'}:${docTargetName(cid)}`;
   renderDocList();
   document.getElementById('docOverlay').classList.add('show');
 }
@@ -1882,7 +2062,7 @@ function docFileChanged(){
   if(!t.value.trim()) t.value = f.name.replace(/\.[^.]+$/, '');
 }
 function renderDocList(){
-  const cid = S.souba.currentId;
+  const cid = S[DOC_KIND].currentId;
   const box = document.getElementById('docList');
   const list = tankaDocs.filter(d=>d.cid===cid).sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt||0)-(a.createdAt||0));
   if(!list.length){ box.innerHTML = '<div class="empty">まだ登録がありません</div>'; return; }
@@ -1982,7 +2162,7 @@ async function deleteDocChunks(docId, keepCount){
   }
 }
 async function saveDoc(){
-  const cid = S.souba.currentId;
+  const cid = S[DOC_KIND].currentId;
   if(!cid) return;
   const v = {
     date: document.getElementById('docDate').value,
